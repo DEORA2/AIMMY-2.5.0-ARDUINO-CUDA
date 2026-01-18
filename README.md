@@ -1,3 +1,4 @@
+THIS IS A FORK OF AIMMY 2.5.0 WHICH INCLUDES ARDUINO/CUDA SUPPORT I HOPE YOU ENJOY :D
 
 > [!NOTE]
 > If you enjoy Aimmy, please consider giving us a star ⭐! We appreciate it! :)
