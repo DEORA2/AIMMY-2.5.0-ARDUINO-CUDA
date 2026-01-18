@@ -215,6 +215,14 @@
                                 Width="50"
                                 Margin="0,150,0,0"
                                 Click="MenuSwitch" />
+                    <TextBlock x:Name="COMPortsTextBlock"
+           HorizontalAlignment="Center"
+           Margin="0,258,0,0"
+           VerticalAlignment="Top"
+           Foreground="#ffffff"
+           FontSize="14"
+           FontFamily="Segoe UI"
+           TextWrapping="Wrap" />
                 </Grid>
 
                 <!-- Content Area for UserControls -->

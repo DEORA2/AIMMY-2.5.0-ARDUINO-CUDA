@@ -1,11 +1,8 @@
 using Aimmy2.Class;
-using Aimmy2.MouseMovementLibraries.GHubSupport;
 using Class;
-using MouseMovementLibraries.ddxoftSupport;
-using MouseMovementLibraries.RazerSupport;
-using MouseMovementLibraries.SendInputSupport;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using MouseMovementLibraries.ArduinoSupport;
 
 namespace InputLogic
 {
@@ -14,19 +11,28 @@ namespace InputLogic
         private static readonly double ScreenWidth = WinAPICaller.ScreenWidth;
         private static readonly double ScreenHeight = WinAPICaller.ScreenHeight;
 
+        private static ArduinoInput? arduinoInput;
+
+
         private static DateTime LastClickTime = DateTime.MinValue;
         private static bool isSpraying = false;
 
-        private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
-        private const uint MOUSEEVENTF_LEFTUP = 0x0004;
-        private const uint MOUSEEVENTF_MOVE = 0x0001;
         private static double previousX = 0;
         private static double previousY = 0;
         public static double smoothingFactor = 0.5;
         public static bool IsEMASmoothingEnabled = false;
 
-        [DllImport("user32.dll")]
-        private static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, int dwExtraInfo);
+        public static void InitArduino(string comPort)
+        {
+            try
+            {
+                arduinoInput = new ArduinoInput(comPort);
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"Failed to connect to {comPort}:\n{ex.Message}", "Arduino Error");
+            }
+        }
 
         private static Random MouseRandom = new();
 
@@ -41,25 +47,9 @@ namespace InputLogic
 
             switch (mouseMovementMethod)
             {
-                case "SendInput":
-                    mouseDownAction = () => SendInputMouse.SendMouseCommand(MOUSEEVENTF_LEFTDOWN);
-                    mouseUpAction = () => SendInputMouse.SendMouseCommand(MOUSEEVENTF_LEFTUP);
-                    break;
-                case "LG HUB":
-                    mouseDownAction = () => LGMouse.Move(1, 0, 0, 0);
-                    mouseUpAction = () => LGMouse.Move(0, 0, 0, 0);
-                    break;
-                case "Razer Synapse (Require Razer Peripheral)":
-                    mouseDownAction = () => RZMouse.mouse_click(1);
-                    mouseUpAction = () => RZMouse.mouse_click(0);
-                    break;
-                case "ddxoft Virtual Input Driver":
-                    mouseDownAction = () => DdxoftMain.ddxoftInstance.btn!(1);
-                    mouseUpAction = () => DdxoftMain.ddxoftInstance.btn(2);
-                    break;
                 default:
-                    mouseDownAction = () => mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-                    mouseUpAction = () => mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+                    mouseDownAction = () => arduinoInput?.SendMouseCommand(0,0, 1);
+                    mouseUpAction = () => arduinoInput?.SendMouseCommand(0,0, 0);
                     break;
             }
 
@@ -198,24 +188,8 @@ namespace InputLogic
 
             switch (Dictionary.dropdownState["Mouse Movement Method"])
             {
-                case "SendInput":
-                    SendInputMouse.SendMouseCommand(MOUSEEVENTF_MOVE, newPosition.X, newPosition.Y);
-                    break;
-
-                case "LG HUB":
-                    LGMouse.Move(0, newPosition.X, newPosition.Y, 0);
-                    break;
-
-                case "Razer Synapse (Require Razer Peripheral)":
-                    RZMouse.mouse_move(newPosition.X, newPosition.Y, true);
-                    break;
-
-                case "ddxoft Virtual Input Driver":
-                    DdxoftMain.ddxoftInstance.movR!(newPosition.X, newPosition.Y);
-                    break;
-
                 default:
-                    mouse_event(MOUSEEVENTF_MOVE, (uint)newPosition.X, (uint)newPosition.Y, 0, 0);
+                    arduinoInput?.SendMouseCommand(newPosition.X, newPosition.Y, 0);
                     break;
             }
 

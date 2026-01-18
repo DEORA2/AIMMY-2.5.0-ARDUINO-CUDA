@@ -1,6 +1,5 @@
 using Aimmy2.Class;
 using Aimmy2.Controls;
-using Aimmy2.MouseMovementLibraries.GHubSupport;
 using Aimmy2.Other;
 using Aimmy2.Theme;
 using Aimmy2.UILibrary;
@@ -9,10 +8,13 @@ using Class;
 using InputLogic;
 using Other;
 using System.IO;
+using System.IO.Ports;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using UILibrary;
 using Visuality;
 
@@ -79,6 +81,9 @@ namespace Aimmy2
             InitializeComponent();
         }
 
+        private string connectedPort;
+        private DispatcherTimer comPortTimer;
+
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
             try
@@ -94,6 +99,7 @@ namespace Aimmy2
 
                 // Now load the initial menu - it will use the loaded minimize states
                 LoadInitialMenu();
+                StartCOMPortsUpdater();
 
                 // Continue with the rest of initialization
                 await InitializeApplicationAsync();
@@ -104,6 +110,69 @@ namespace Aimmy2
             catch (Exception ex)
             {
                 ShowError($"Error during startup: {ex.Message}", ex);
+            }
+        }
+
+        private void StartCOMPortsUpdater()
+        {
+            comPortTimer = new DispatcherTimer();
+            comPortTimer.Interval = TimeSpan.FromSeconds(2);
+            comPortTimer.Tick += (s, e) => UpdateCOMPortsTextBlock();
+            comPortTimer.Start();
+        }
+        private void UpdateCOMPortsTextBlock()
+        {
+            if (COMPortsTextBlock == null) return;
+
+            string[] ports = SerialPort.GetPortNames();
+            COMPortsTextBlock.Inlines.Clear();
+
+            // Title
+            COMPortsTextBlock.Inlines.Add(new Run("Ports ↓\n")
+            {
+                FontWeight = FontWeights.Bold,
+                FontSize = 16
+            });
+
+            if (ports.Length > 0)
+            {
+                foreach (var port in ports)
+                {
+                    var link = new Hyperlink(new Run($"  {port}\n"))
+                    {
+                        FontWeight = FontWeights.Normal,
+                        FontSize = 14
+                    };
+
+                    if (port == connectedPort)
+                    {
+                        link.Foreground = Brushes.LightGreen;
+                        link.FontWeight = FontWeights.Bold;
+                    }
+
+                    link.Click += (sender2, args) =>
+                    {
+                        try
+                        {
+                            MouseManager.InitArduino(port);
+                            connectedPort = port;
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"Failed to connect to {port}:\n{ex.Message}", "Error",
+                                MessageBoxButton.OK, MessageBoxImage.Error);
+                        }
+                    };
+
+                    COMPortsTextBlock.Inlines.Add(link);
+                }
+            }
+            else
+            {
+                COMPortsTextBlock.Inlines.Add(new Run("  No COM Ports Available")
+                {
+                    FontStyle = FontStyles.Italic
+                });
             }
         }
 
@@ -386,7 +455,6 @@ namespace Aimmy2
 
             DisableAllFeatures();
             CloseWindows();
-            CleanupDrivers();
 
             // Dispose menu controls to save their states
             if (_menuControls["AimMenu"] is AimMenuControl aimMenu)
@@ -418,15 +486,6 @@ namespace Aimmy2
         {
             FOVWindow.Close();
             DPWindow.Close();
-        }
-
-        private void CleanupDrivers()
-        {
-            if (Dictionary.dropdownState.TryGetValue("Mouse Movement Method", out var method) &&
-                method?.ToString() == "LG HUB")
-            {
-                LGMouse.Close();
-            }
         }
 
         private void SaveAllConfigurations()
@@ -869,11 +928,7 @@ namespace Aimmy2
                 // SettingsMenu dropdowns
                 (uiManager.D_MouseMovementMethod, "Mouse Movement Method", new Dictionary<string, int>
                 {
-                    ["Mouse Event"] = 0,
-                    ["SendInput"] = 1,
-                    ["LG HUB"] = 2,
-                    ["Razer Synapse (Require Razer Peripheral)"] = 3,
-                    ["ddxoft Virtual Input Driver"] = 4
+                    ["Arduino"] = 0,
                 }),
                 (uiManager.D_ScreenCaptureMethod, "Screen Capture Method", new Dictionary<string, int>
                 {
@@ -1004,11 +1059,7 @@ namespace Aimmy2
 
                 ("Mouse Movement Method", uiManager.D_MouseMovementMethod, new Dictionary<string, int>
                 {
-                    ["Mouse Event"] = 0,
-                    ["SendInput"] = 1,
-                    ["LG HUB"] = 2,
-                    ["Razer Synapse (Require Razer Peripheral)"] = 3,
-                    ["ddxoft Virtual Input Driver"] = 4
+                    ["Arduino"] = 0,
                 }),
 
                 ("Movement Path", uiManager.D_MovementPath, new Dictionary<string, int>

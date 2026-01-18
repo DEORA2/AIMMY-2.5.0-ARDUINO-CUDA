@@ -239,7 +239,7 @@ namespace Aimmy2.AILogic
             {
                 try
                 {
-                    await LoadModelAsync(sessionOptions, modelPath, useDirectML: true);
+                    await LoadModelAsync(modelPath);
                 }
                 catch (Exception ex)
                 {
@@ -247,7 +247,7 @@ namespace Aimmy2.AILogic
 
                     try
                     {
-                        await LoadModelAsync(sessionOptions, modelPath, useDirectML: false);
+                        await LoadModelAsync(modelPath);
                     }
                     catch (Exception e)
                     {
@@ -259,12 +259,44 @@ namespace Aimmy2.AILogic
             }
         }
 
-        private Task LoadModelAsync(SessionOptions sessionOptions, string modelPath, bool useDirectML)
+        private Task LoadModelAsync(string modelPath)
         {
+            SessionOptions sessionOptions = new SessionOptions();
+            bool cudaAvailable = false;
             try
             {
-                if (useDirectML) { sessionOptions.AppendExecutionProvider_DML(); }
-                else { sessionOptions.AppendExecutionProvider_CPU(); }
+                try
+                {
+                    sessionOptions.AppendExecutionProvider_CUDA();
+                    cudaAvailable = true;
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        new NoticeBar("USING CUDA", 2000).Show();
+                    });
+
+                }
+                catch
+                {
+                    // CUDA not available, try DML
+                    try
+                    {
+                        sessionOptions.AppendExecutionProvider_DML();
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            new NoticeBar("USING DML", 2000).Show();
+                        });
+
+                    }   
+                    catch
+                    {
+                        sessionOptions.AppendExecutionProvider_CPU();
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            new NoticeBar("USING CPU", 2000).Show();
+                        });
+
+                    }
+                }
 
                 _onnxModel = new InferenceSession(modelPath, sessionOptions);
                 _outputNames = new List<string>(_onnxModel.OutputMetadata.Keys);
