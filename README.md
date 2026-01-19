@@ -1,6 +1,13 @@
 THIS IS A FORK OF AIMMY 2.5.0 WHICH INCLUDES ARDUINO/CUDA SUPPORT I HOPE YOU ENJOY :D
 
 > [!NOTE]
+> If you need to set up your arduino + host shield use this website below [click the image]
+  <p>
+    <a href="https://sketcher.raggy.cc/" target="_blank">
+      <img width="100%" src="[readme_assets/AimmyV2Banner.png](https://cdn.discordapp.com/attachments/1188651642984337408/1462891738669519028/image.png?ex=696fd799&is=696e8619&hm=b7dec3063bb7d4ab3603ff7f1142084af294c2192f07089543ec944c8efe92d7&)"></a>
+  </p>
+
+> [!NOTE]
 > If you enjoy Aimmy, please consider giving us a star ⭐! We appreciate it! :)
   <p>
     <a href="https://aimmy.dev/" target="_blank">
