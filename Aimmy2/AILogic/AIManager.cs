@@ -56,6 +56,15 @@ namespace Whales2.AILogic
 
         private DateTime lastSavedTime = DateTime.MinValue;
         private List<string>? _outputNames;
+        private string _inputName = "images";
+        // Null until the output shape is known; dynamic-shape models resolve it from
+        // the first inference.
+        private ModelOutputLayout? _outputLayout;
+        private int _metadataClassCount;
+        // Trailing per-box values that aren't box/score data: mask coefficients
+        // (segment), keypoints (pose) or the rotation angle (obb).
+        private int _extraChannels;
+        private bool _layoutErrorLogged;
         private RectangleF LastDetectionBox;
         private KalmanPrediction kalmanPrediction;
         private WiseTheFoxPrediction wtfpredictionManager;
@@ -344,7 +353,6 @@ namespace Whales2.AILogic
                 provider = TryAppendBestProvider(sessionOptions, available);
                 _onnxModel = new InferenceSession(modelPath, sessionOptions);
                 ExecutionProvider = provider; // only report a provider once the session actually started
-                _outputNames = new List<string>(_onnxModel.OutputMetadata.Keys);
 
                 // Validate the onnx model output shape (ensure model is OnnxV8)
                 if (!ValidateOnnxShape())
@@ -388,21 +396,38 @@ namespace Whales2.AILogic
                 bool isDynamic = false;
                 int fixedInputSize = 0;
 
+                _inputName = _onnxModel.InputNames[0];
+
                 foreach (var kvp in inputMetadata)
                 {
                     string dimensionsStr = string.Join("x", kvp.Value.Dimensions);
                     Log(LogLevel.Info, $"  Name: {kvp.Key}, Dimensions: {dimensionsStr}");
+                }
 
-                    // Check if model is dynamic (dimensions are -1)
-                    if (kvp.Value.Dimensions.Any(d => d == -1))
+                var inputDims = inputMetadata[_inputName].Dimensions;
+                if (inputDims.Length == 4)
+                {
+                    // Only a dynamic height/width makes the model size-selectable; a
+                    // dynamic batch axis alone still means a fixed input size.
+                    if (inputDims[2] <= 0 || inputDims[3] <= 0)
                     {
                         isDynamic = true;
                     }
-                    else if (kvp.Value.Dimensions.Length == 4)
+                    else if (inputDims[2] != inputDims[3])
                     {
-                        // For fixed models, check if it's the expected format (1x3xHxW)
-                        fixedInputSize = kvp.Value.Dimensions[2]; // Height should equal Width for square models
+                        Log(LogLevel.Error,
+                            $"Model input is {inputDims[3]}x{inputDims[2]}; only square inputs are supported. Re-export with a square imgsz.",
+                            true, 10000);
+                        return false;
                     }
+                    else
+                    {
+                        fixedInputSize = inputDims[2];
+                    }
+                }
+                else if (inputDims.Any(d => d <= 0))
+                {
+                    isDynamic = true;
                 }
 
                 Log(LogLevel.Info, "Output Metadata:");
@@ -477,17 +502,13 @@ namespace Whales2.AILogic
 
                     ImageSizeUpdated?.Invoke(fixedInputSize);
                     LoadClasses();
+                }
 
-                    // For static models, validate the expected shape
-                    var expectedShape = new int[] { 1, 4 + NUM_CLASSES, NUM_DETECTIONS };
-                    if (!outputMetadata.Values.All(metadata => metadata.Dimensions.SequenceEqual(expectedShape)))
-                    {
-                        Log(LogLevel.Error,
-                            $"Output shape does not match the expected shape of {string.Join("x", expectedShape)}.\nThis model will not work with Whales, please use an YOLOv8 model converted to ONNXv8.",
-                            true, 10000);
-                        return false;
-                    }
+                if (!ConfigureOutputLayout(outputMetadata))
+                    return false;
 
+                if (!IsDynamicModel)
+                {
                     Log(LogLevel.Info, $"Loaded fixed-size model: {fixedInputSize}x{fixedInputSize}", true, 2000);
                 }
 
@@ -498,6 +519,115 @@ namespace Whales2.AILogic
             }
 
             return false;
+        }
+
+        private bool ConfigureOutputLayout(IReadOnlyDictionary<string, NodeMetadata> outputMetadata)
+        {
+            string primaryName = _onnxModel!.OutputNames[0];
+            // Only the detection head is used; not requesting mask prototypes and other
+            // side outputs lets ONNX Runtime skip computing them.
+            _outputNames = new List<string> { primaryName };
+
+            string task = GetModelMetadataValue("task") ?? "";
+            if (task.Equals("classify", StringComparison.OrdinalIgnoreCase))
+            {
+                Log(LogLevel.Error,
+                    "This is a classification model, not a detection model. Export a YOLO detect, segment, pose or OBB model instead.",
+                    true, 10000);
+                return false;
+            }
+
+            _extraChannels = GetExtraChannels(task, outputMetadata, primaryName);
+            _metadataClassCount = _modelClasses.Count > 0 ? _modelClasses.Keys.Max() + 1 : 0;
+            _outputLayout = null;
+            _layoutErrorLogged = false;
+
+            int[] dims = outputMetadata[primaryName].Dimensions;
+            if (ModelOutputLayout.TryResolve(dims, IMAGE_SIZE, _metadataClassCount, _extraChannels, out var layout, out var error))
+            {
+                ApplyOutputLayout(layout!);
+                return true;
+            }
+
+            if (error != null)
+            {
+                Log(LogLevel.Error,
+                    $"Unsupported model output {string.Join("x", dims)}: {error}.\nSupported: YOLOv5, v7, v8, v9, v10, v11 and v12 detect / segment / pose / OBB ONNX exports.",
+                    true, 10000);
+                return false;
+            }
+
+            Log(LogLevel.Info, $"Output shape {string.Join("x", dims)} is dynamic; the layout will be detected from the first frame.");
+            return true;
+        }
+
+        private void ApplyOutputLayout(ModelOutputLayout layout)
+        {
+            _outputLayout = layout;
+            NUM_CLASSES = layout.NumClasses;
+
+            if (_metadataClassCount > 0 && _metadataClassCount != layout.NumClasses && layout.Format != OutputFormat.EndToEnd)
+            {
+                Log(LogLevel.Warning,
+                    $"Model metadata lists {_metadataClassCount} class(es) but the output has {layout.NumClasses}; using the output.");
+            }
+
+            // Models with missing or stale class-name metadata still need a name per
+            // class so they show up in the Target Class list.
+            bool added = false;
+            for (int id = 0; id < layout.NumClasses; id++)
+            {
+                if (_modelClasses.TryAdd(id, $"Class_{id}"))
+                    added = true;
+            }
+            if (added)
+                ClassesUpdated?.Invoke(new Dictionary<int, string>(_modelClasses));
+
+            Log(LogLevel.Info, $"Model output layout: {layout.Describe()}");
+        }
+
+        private int GetExtraChannels(string task, IReadOnlyDictionary<string, NodeMetadata> outputMetadata, string primaryName)
+        {
+            // Segmentation heads append one coefficient per mask prototype; the
+            // prototype output's channel count says how many.
+            int[]? protoDims = outputMetadata
+                .Where(o => o.Key != primaryName)
+                .Select(o => o.Value.Dimensions)
+                .FirstOrDefault(d => d.Length == 4);
+
+            if (task.Equals("segment", StringComparison.OrdinalIgnoreCase) || protoDims != null)
+                return protoDims != null && protoDims[1] > 0 ? protoDims[1] : 32;
+
+            if (task.Equals("pose", StringComparison.OrdinalIgnoreCase))
+            {
+                // kpt_shape is stored like "[17, 3]": keypoints x values per keypoint.
+                string kptShape = GetModelMetadataValue("kpt_shape") ?? "[17, 3]";
+                int product = 1;
+                foreach (var part in kptShape.Split(new[] { '[', ']', ',', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (int.TryParse(part, out int value) && value > 0)
+                        product *= value;
+                }
+                return product > 1 ? product : 51;
+            }
+
+            if (task.Equals("obb", StringComparison.OrdinalIgnoreCase))
+                return 1;
+
+            return 0;
+        }
+
+        private string? GetModelMetadataValue(string key)
+        {
+            try
+            {
+                var map = _onnxModel?.ModelMetadata?.CustomMetadataMap;
+                return map != null && map.TryGetValue(key, out string? value) ? value : null;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private void LoadClasses()
@@ -534,7 +664,8 @@ namespace Whales2.AILogic
                 }
                 else
                 {
-                    Log(LogLevel.Error, "Model metadata does not contain 'names' field for classes.", true);
+                    // Class count is read from the output shape instead, with generic names.
+                    Log(LogLevel.Warning, "Model metadata does not contain 'names'; using generic class names.");
                 }
                 ClassesUpdated?.Invoke(new Dictionary<int, string>(_modelClasses));
             }
@@ -729,35 +860,24 @@ namespace Whales2.AILogic
             }
         }
 
-        private static int _overlayUpdatePending;
-
         private static void DisableOverlay(DetectedPlayerWindow DetectedPlayerOverlay)
         {
             if (Dictionary.toggleState["Show Detected Player"] && Dictionary.DetectedPlayerOverlay != null)
             {
-                if (Interlocked.CompareExchange(ref _overlayUpdatePending, 1, 0) != 0) return;
-
-                Application.Current.Dispatcher.BeginInvoke(() =>
+                Application.Current.Dispatcher.Invoke(() =>
                 {
-                    try
+                    if (Dictionary.toggleState["Show AI Confidence"])
                     {
-                        if (Dictionary.toggleState["Show AI Confidence"])
-                        {
-                            DetectedPlayerOverlay!.DetectedPlayerConfidence.Opacity = 0;
-                        }
-
-                        if (Dictionary.toggleState["Show Tracers"])
-                        {
-                            DetectedPlayerOverlay!.DetectedTracers.Opacity = 0;
-                        }
-
-                        DetectedPlayerOverlay!.DetectedPlayerFocus.Opacity = 0;
+                        DetectedPlayerOverlay!.DetectedPlayerConfidence.Opacity = 0;
                     }
-                    finally
+
+                    if (Dictionary.toggleState["Show Tracers"])
                     {
-                        Interlocked.Exchange(ref _overlayUpdatePending, 0);
+                        DetectedPlayerOverlay!.DetectedTracers.Opacity = 0;
                     }
-                }, System.Windows.Threading.DispatcherPriority.Background);
+
+                    DetectedPlayerOverlay!.DetectedPlayerFocus.Opacity = 0;
+                });
             }
         }
 
@@ -774,12 +894,8 @@ namespace Whales2.AILogic
             var centerX = Convert.ToInt16(displayRelativeX / scalingFactorX) + (LastDetectionBox.Width / 2.0);
             var centerY = Convert.ToInt16(displayRelativeY / scalingFactorY);
 
-            if (Interlocked.CompareExchange(ref _overlayUpdatePending, 1, 0) != 0) return;
-
-            Application.Current.Dispatcher.BeginInvoke(() =>
+            Application.Current.Dispatcher.Invoke(() =>
             {
-                try
-                {
                 if (Dictionary.toggleState["Show AI Confidence"])
                 {
                     DetectedPlayerOverlay.DetectedPlayerConfidence.Opacity = 1;
@@ -846,12 +962,7 @@ namespace Whales2.AILogic
                     centerX - (LastDetectionBox.Width / 2.0), centerY, 0, 0);
                 DetectedPlayerOverlay.DetectedPlayerFocus.Width = LastDetectionBox.Width;
                 DetectedPlayerOverlay.DetectedPlayerFocus.Height = LastDetectionBox.Height;
-                }
-                finally
-                {
-                    Interlocked.Exchange(ref _overlayUpdatePending, 0);
-                }
-            }, System.Windows.Threading.DispatcherPriority.Background);
+            });
         }
 
         private void CalculateCoordinates(DetectedPlayerWindow DetectedPlayerOverlay, Prediction closestPrediction, float scaleX, float scaleY)
@@ -1045,7 +1156,7 @@ namespace Whales2.AILogic
                 if (_reusableTensor == null || _reusableTensor.Dimensions[2] != IMAGE_SIZE)
                 {
                     _reusableTensor = new DenseTensor<float>(inputArray, new int[] { 1, 3, IMAGE_SIZE, IMAGE_SIZE });
-                    _reusableInputs = new List<NamedOnnxValue> { NamedOnnxValue.CreateFromTensor("images", _reusableTensor) };
+                    _reusableInputs = new List<NamedOnnxValue> { NamedOnnxValue.CreateFromTensor(_inputName, _reusableTensor) };
                 }
                 else
                 {
@@ -1065,6 +1176,22 @@ namespace Whales2.AILogic
                     Log(LogLevel.Error, "Model inference returned null output tensor.", true, 2000);
                     SaveFrame(frame);
                     return null;
+                }
+
+                if (_outputLayout == null || !_outputLayout.Matches(outputTensor.Dimensions))
+                {
+                    if (!ModelOutputLayout.TryResolve(outputTensor.Dimensions, IMAGE_SIZE, _metadataClassCount, _extraChannels, out var layout, out var layoutError))
+                    {
+                        if (!_layoutErrorLogged)
+                        {
+                            _layoutErrorLogged = true;
+                            Log(LogLevel.Error,
+                                $"Unsupported model output {string.Join("x", outputTensor.Dimensions.ToArray())}: {layoutError ?? "shape could not be determined"}.",
+                                true, 10000);
+                        }
+                        return null;
+                    }
+                    ApplyOutputLayout(layout!);
                 }
 
                 // Calculate the FOV boundaries
@@ -1326,31 +1453,72 @@ namespace Whales2.AILogic
             string selectedClass = Dictionary.dropdownState["Target Class"];
             int selectedClassId = selectedClass == "Best Confidence" ? -1 : _modelClasses.FirstOrDefault(c => c.Value == selectedClass).Key;
 
-            // we dont use kdpoints anymore because we replaced the kd-tree with a linear search
-            //var KDpoints = new List<double[]>(NUM_DETECTIONS); // Pre-allocate with estimated capacity
-            var KDpredictions = new List<Prediction>(NUM_DETECTIONS);
+            var layout = _outputLayout!;
+            int numClasses = layout.NumClasses;
+            if (selectedClassId >= numClasses && layout.Format != OutputFormat.EndToEnd)
+                selectedClassId = -1;
 
-            for (int i = 0; i < NUM_DETECTIONS; i++)
+            ReadOnlySpan<int> dims = outputTensor.Dimensions;
+            int boxCount = layout.BoxCount(dims);
+            // Read the flat buffer directly (batch 0 is first); the multi-index
+            // accessor recomputes strides on every element.
+            ReadOnlySpan<float> data = outputTensor is DenseTensor<float> dense
+                ? dense.Buffer.Span
+                : outputTensor.ToArray();
+            int channelStride = layout.ChannelsFirst ? boxCount : 1;
+            int boxStride = layout.ChannelsFirst ? 1 : layout.Channels;
+            int classStart = layout.ClassStart;
+
+            var KDpredictions = new List<Prediction>();
+
+            for (int i = 0; i < boxCount; i++)
             {
-                float x_center = outputTensor[0, 0, i];
-                float y_center = outputTensor[0, 1, i];
-                float width = outputTensor[0, 2, i];
-                float height = outputTensor[0, 3, i];
+                int b = i * boxStride;
 
                 int bestClassId = 0;
                 float bestConfidence = 0f;
+                float x_center, y_center, width, height;
 
-                if (NUM_CLASSES == 1)
+                if (layout.Format == OutputFormat.EndToEnd)
                 {
-                    bestConfidence = outputTensor[0, 4, i];
+                    bestConfidence = data[b + 4 * channelStride];
+                    if (bestConfidence < minConfidence) continue;
+
+                    bestClassId = (int)data[b + 5 * channelStride];
+                    if (selectedClassId >= 0 && bestClassId != selectedClassId) continue;
+
+                    float x1 = data[b];
+                    float y1 = data[b + channelStride];
+                    float x2 = data[b + 2 * channelStride];
+                    float y2 = data[b + 3 * channelStride];
+                    x_center = (x1 + x2) / 2;
+                    y_center = (y1 + y2) / 2;
+                    width = x2 - x1;
+                    height = y2 - y1;
                 }
                 else
                 {
-                    if (selectedClassId == -1)
+                    float objectness = 1f;
+                    if (layout.Format == OutputFormat.Objectness)
                     {
-                        for (int classId = 0; classId < NUM_CLASSES; classId++)
+                        objectness = data[b + 4 * channelStride];
+                        if (objectness < minConfidence) continue;
+                    }
+
+                    if (numClasses == 1)
+                    {
+                        bestConfidence = data[b + classStart * channelStride];
+                    }
+                    else if (selectedClassId >= 0)
+                    {
+                        bestConfidence = data[b + (classStart + selectedClassId) * channelStride];
+                        bestClassId = selectedClassId;
+                    }
+                    else
+                    {
+                        for (int classId = 0; classId < numClasses; classId++)
                         {
-                            float classConfidence = outputTensor[0, 4 + classId, i];
+                            float classConfidence = data[b + (classStart + classId) * channelStride];
                             if (classConfidence > bestConfidence)
                             {
                                 bestConfidence = classConfidence;
@@ -1358,14 +1526,25 @@ namespace Whales2.AILogic
                             }
                         }
                     }
-                    else
-                    {
-                        bestConfidence = outputTensor[0, 4 + selectedClassId, i];
-                        bestClassId = selectedClassId;
-                    }
+
+                    bestConfidence *= objectness;
+                    if (bestConfidence < minConfidence) continue;
+
+                    x_center = data[b];
+                    y_center = data[b + channelStride];
+                    width = data[b + 2 * channelStride];
+                    height = data[b + 3 * channelStride];
                 }
 
-                if (bestConfidence < minConfidence) continue;
+                // Some exports emit boxes normalized to 0..1 instead of input pixels;
+                // a real box can't be under a pixel wide, so this can't misfire.
+                if (width <= 1f && height <= 1f && x_center <= 1f && y_center <= 1f)
+                {
+                    x_center *= IMAGE_SIZE;
+                    y_center *= IMAGE_SIZE;
+                    width *= IMAGE_SIZE;
+                    height *= IMAGE_SIZE;
+                }
 
                 float x_min = x_center - width / 2;
                 float y_min = y_center - height / 2;

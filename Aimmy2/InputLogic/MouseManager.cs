@@ -1,8 +1,8 @@
 using Whales2.Class;
 using Class;
+using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
-using System.Threading;
 using MouseMovementLibraries.ArduinoSupport;
 using Whales2.MouseMovementLibraries.HidDeviceSupport;
 
@@ -25,81 +25,12 @@ namespace InputLogic
         public static bool IsEMASmoothingEnabled = false;
         public static HidMouseDevice? HidDevice = null;
 
-        // Non-blocking mouse sender: AI loop drops the latest desired (dx, dy, method)
-        // into _pendingMove and signals; the sender thread reads it and writes to the
-        // device off the hot path. Intermediate moves between slow writes are coalesced
-        // (only the newest target matters). Keeps the AI loop from stalling on serial / HID I/O.
-        private static int _pendingX;
-        private static int _pendingY;
-        private static int _pendingHasMove;
-        private static string _pendingMethod = "Arduino";
-        private static readonly AutoResetEvent _moveSignal = new AutoResetEvent(false);
-        private static Thread? _senderThread;
-        private static volatile bool _senderRunning;
-
-        static MouseManager()
-        {
-            StartSenderThread();
-        }
-
-        private static void StartSenderThread()
-        {
-            if (_senderThread != null && _senderThread.IsAlive) return;
-            _senderRunning = true;
-            _senderThread = new Thread(SenderLoop)
-            {
-                IsBackground = true,
-                Name = "MouseMoveSender",
-                Priority = ThreadPriority.AboveNormal
-            };
-            _senderThread.Start();
-        }
-
-        private static void SenderLoop()
-        {
-            while (_senderRunning)
-            {
-                _moveSignal.WaitOne();
-
-                if (Interlocked.Exchange(ref _pendingHasMove, 0) == 0) continue;
-
-                int x = Interlocked.Exchange(ref _pendingX, 0);
-                int y = Interlocked.Exchange(ref _pendingY, 0);
-                string method = _pendingMethod;
-
-                try
-                {
-                    switch (method)
-                    {
-                        case "RP2350":
-                            HidDevice?.SendMove(x, y);
-                            break;
-                        case "Arduino":
-                        default:
-                            arduinoInput?.SendMouseCommand(x, y, 0);
-                            break;
-                    }
-                }
-                catch { /* device errors are reported by the device itself */ }
-            }
-        }
-
-        private static void EnqueueMove(int dx, int dy, string method)
-        {
-            // Latest-wins: accumulate deltas so a skipped frame still steers the cursor,
-            // but never block the AI loop. If the sender hasn't consumed the previous
-            // move yet, we add our delta on top — the next sender pass flushes the total.
-            Interlocked.Add(ref _pendingX, dx);
-            Interlocked.Add(ref _pendingY, dy);
-            _pendingMethod = method;
-            Interlocked.Exchange(ref _pendingHasMove, 1);
-            _moveSignal.Set();
-        }
-
         public static void InitArduino(string comPort)
         {
             try
             {
+                arduinoInput?.Close();
+                arduinoInput = null;
                 arduinoInput = new ArduinoInput(comPort);
             }
             catch (Exception ex)
@@ -108,7 +39,7 @@ namespace InputLogic
             }
         }
 
-        private static Random MouseRandom = new();
+        private static readonly Random MouseRandom = new();
 
         private static double EmaSmoothing(double previousValue, double currentValue, double smoothingFactor) => (currentValue * smoothingFactor) + (previousValue * (1 - smoothingFactor));
 
@@ -204,90 +135,159 @@ namespace InputLogic
         }
         #endregion
 
-        public static void MoveCrosshair(int detectedX, int detectedY)
+        // A gap longer than this means aim was released or the target was lost; stale
+        // velocity / EMA / remainder from the previous engagement must not kick the
+        // first move of the next one.
+        private const double AIM_STATE_RESET_SECONDS = 0.1;
+        // Fraction of the target's per-frame screen motion added as lead. Cancels the
+        // 1–2 frame lag of proportional aim without lowering sensitivity.
+        private const double LEAD_STRENGTH = 0.5;
+        private const double LEAD_MAX_PIXELS = 25;
+        // Bounding-box centers wobble by about a pixel frame to frame; errors this small
+        // are noise, and chasing them is what makes the crosshair chatter on target.
+        private const double AIM_DEADZONE_PIXELS = 1.0;
+        private const double MAX_MOVE_PIXELS = 150;
+
+        private static long _lastAimTick;
+        private static double _lastRawX;
+        private static double _lastRawY;
+        private static double _smoothedVelX;
+        private static double _smoothedVelY;
+        // Sub-pixel carry: the device only takes whole pixels, so the fraction of each
+        // move is kept and added to the next one instead of being truncated away.
+        private static double _remainderX;
+        private static double _remainderY;
+
+        private static void ResetAimState(int detectedX, int detectedY)
         {
-            int halfScreenWidth = (int)ScreenWidth / 2;
-            int halfScreenHeight = (int)ScreenHeight / 2;
+            _lastRawX = detectedX;
+            _lastRawY = detectedY;
+            _smoothedVelX = 0;
+            _smoothedVelY = 0;
+            _remainderX = 0;
+            _remainderY = 0;
+            previousX = 0;
+            previousY = 0;
+        }
 
-            int targetX = detectedX - halfScreenWidth;
-            int targetY = detectedY - halfScreenHeight;
-
-            double aspectRatioCorrection = ScreenWidth / ScreenHeight;
-
-            int MouseJitter = (int)Dictionary.sliderSettings["Mouse Jitter"];
-            int jitterX = MouseRandom.Next(-MouseJitter, MouseJitter);
-            int jitterY = MouseRandom.Next(-MouseJitter, MouseJitter);
-
-            Point start = new(0, 0);
-            Point end = new(targetX, targetY);
-            Point newPosition = new Point(0, 0);
+        private static PointF ComputePathMove(PointF end, double sensitivity)
+        {
+            PointF start = PointF.Empty;
+            double t = 1 - sensitivity;
 
             switch (Dictionary.dropdownState["Movement Path"])
             {
                 case "Cubic Bezier":
-                    Point control1 = new Point(start.X + (end.X - start.X) / 3, start.Y + (end.Y - start.Y) / 3);
-                    Point control2 = new Point(start.X + 2 * (end.X - start.X) / 3, start.Y + 2 * (end.Y - start.Y) / 3);
-                    newPosition = MovementPaths.CubicBezier(start, end, control1, control2, 1 - Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
-                    break;
-                case "Linear":
-                    newPosition = MovementPaths.Lerp(start, end, 1 - Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
-                    break;
+                    PointF control1 = new PointF(end.X / 3f, end.Y / 3f);
+                    PointF control2 = new PointF(2f * end.X / 3f, 2f * end.Y / 3f);
+                    return MovementPaths.CubicBezier(start, end, control1, control2, t);
                 case "Exponential":
-                    newPosition = MovementPaths.Exponential(start, end, 1 - (Dictionary.sliderSettings["Mouse Sensitivity (+/-)"] - 0.2), 3.0);
-                    break;
+                    return MovementPaths.Exponential(start, end, 1 - (sensitivity - 0.2), 3.0);
                 case "Adaptive":
-                    newPosition = MovementPaths.Adaptive(start, end, 1 - Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
-                    break;
+                    return MovementPaths.Adaptive(start, end, t);
                 case "Perlin Noise":
-                    newPosition = MovementPaths.PerlinNoise(start, end, 1 - Dictionary.sliderSettings["Mouse Sensitivity (+/-)"], 20, 0.5);
-                    break;
+                    return MovementPaths.PerlinNoise(start, end, t, 20, 0.5);
                 case "Sine Wave":
-                    newPosition = MovementPaths.SineWave(start, end, 1 - Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
-                    break;
+                    return MovementPaths.SineWave(start, end, t);
                 case "Ease In-Out":
-                    newPosition = MovementPaths.EaseInOut(start, end, 1 - Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
-                    break;
+                    return MovementPaths.EaseInOut(start, end, t);
                 case "Overshoot":
-                    newPosition = MovementPaths.Overshoot(start, end, 1 - Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
-                    break;
+                    return MovementPaths.Overshoot(start, end, t);
                 case "Catmull-Rom":
-                    newPosition = MovementPaths.CatmullRom(start, end, 1 - Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
-                    break;
+                    return MovementPaths.CatmullRom(start, end, t);
                 case "Smooth Step":
-                    newPosition = MovementPaths.SmoothStep(start, end, 1 - Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
-                    break;
+                    return MovementPaths.SmoothStep(start, end, t);
                 case "Spiral":
-                    newPosition = MovementPaths.Spiral(start, end, 1 - Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
-                    break;
+                    return MovementPaths.Spiral(start, end, t);
+                case "Linear":
                 default:
-                    newPosition = MovementPaths.Lerp(start, end, 1 - Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
-                    break;
+                    return MovementPaths.Lerp(start, end, t);
             }
+        }
+
+        public static void MoveCrosshair(int detectedX, int detectedY)
+        {
+            long nowTick = Stopwatch.GetTimestamp();
+            double dt = _lastAimTick == 0
+                ? double.MaxValue
+                : (nowTick - _lastAimTick) / (double)Stopwatch.Frequency;
+            _lastAimTick = nowTick;
+
+            double leadX = 0;
+            double leadY = 0;
+            if (dt <= 0 || dt > AIM_STATE_RESET_SECONDS)
+            {
+                ResetAimState(detectedX, detectedY);
+            }
+            else
+            {
+                // Velocity comes from raw detections only; feeding the leaded point back
+                // in would make the lead amplify its own noise.
+                double frameDeltaX = detectedX - _lastRawX;
+                double frameDeltaY = detectedY - _lastRawY;
+                _smoothedVelX = _smoothedVelX * 0.6 + (frameDeltaX / dt) * 0.4;
+                _smoothedVelY = _smoothedVelY * 0.6 + (frameDeltaY / dt) * 0.4;
+
+                leadX = Math.Clamp(_smoothedVelX * dt * LEAD_STRENGTH, -LEAD_MAX_PIXELS, LEAD_MAX_PIXELS);
+                leadY = Math.Clamp(_smoothedVelY * dt * LEAD_STRENGTH, -LEAD_MAX_PIXELS, LEAD_MAX_PIXELS);
+            }
+            _lastRawX = detectedX;
+            _lastRawY = detectedY;
+
+            double errorX = detectedX + leadX - ScreenWidth / 2.0;
+            double errorY = detectedY + leadY - ScreenHeight / 2.0;
+            if (Math.Abs(errorX) < AIM_DEADZONE_PIXELS) errorX = 0;
+            if (Math.Abs(errorY) < AIM_DEADZONE_PIXELS) errorY = 0;
+
+            PointF pathMove = ComputePathMove(
+                new PointF((float)errorX, (float)errorY),
+                Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
+
+            double moveX = pathMove.X;
+            double moveY = pathMove.Y;
 
             if (IsEMASmoothingEnabled)
             {
-                newPosition.X = (int)EmaSmoothing(previousX, newPosition.X, smoothingFactor);
-                newPosition.Y = (int)EmaSmoothing(previousY, newPosition.Y, smoothingFactor);
+                moveX = EmaSmoothing(previousX, moveX, smoothingFactor);
+                moveY = EmaSmoothing(previousY, moveY, smoothingFactor);
             }
+            // EMA state is the smoothed path output itself, before clamping, aspect
+            // scaling and jitter, so each frame blends like-for-like values.
+            previousX = moveX;
+            previousY = moveY;
 
-            newPosition.X = Math.Clamp(newPosition.X, -150, 150);
-            newPosition.Y = Math.Clamp(newPosition.Y, -150, 150);
+            moveX = Math.Clamp(moveX, -MAX_MOVE_PIXELS, MAX_MOVE_PIXELS);
+            moveY = Math.Clamp(moveY, -MAX_MOVE_PIXELS, MAX_MOVE_PIXELS);
+            moveY /= ScreenWidth / ScreenHeight;
 
-            newPosition.Y = (int)(newPosition.Y / aspectRatioCorrection);
+            double totalX = moveX + _remainderX;
+            double totalY = moveY + _remainderY;
+            int sendX = (int)Math.Truncate(totalX);
+            int sendY = (int)Math.Truncate(totalY);
+            _remainderX = totalX - sendX;
+            _remainderY = totalY - sendY;
 
-            newPosition.X += jitterX;
-            newPosition.Y += jitterY;
-
-            string method = Dictionary.dropdownState["Mouse Movement Method"];
-            if (method == "Arduino")
+            int mouseJitter = (int)Dictionary.sliderSettings["Mouse Jitter"];
+            if (mouseJitter > 0)
             {
-                newPosition.X += jitterX;
-                newPosition.Y += jitterY;
+                sendX += MouseRandom.Next(-mouseJitter, mouseJitter + 1);
+                sendY += MouseRandom.Next(-mouseJitter, mouseJitter + 1);
             }
-            EnqueueMove(newPosition.X, newPosition.Y, method);
 
-            previousX = newPosition.X;
-            previousY = newPosition.Y;
+            if (sendX != 0 || sendY != 0)
+            {
+                switch (Dictionary.dropdownState["Mouse Movement Method"])
+                {
+                    case "RP2350":
+                        HidDevice?.SendMove(sendX, sendY);
+                        break;
+
+                    case "Arduino":
+                    default:
+                        arduinoInput?.SendMouseMove(sendX, sendY);
+                        break;
+                }
+            }
 
             if (!Dictionary.toggleState["Auto Trigger"])
             {
