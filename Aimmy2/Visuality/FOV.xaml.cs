@@ -1,5 +1,5 @@
-﻿using Aimmy2.Class;
-using Aimmy2.Theme;
+﻿using Whales2.Class;
+using Whales2.Theme;
 using Class;
 using System.Runtime.InteropServices;
 using System.Windows;

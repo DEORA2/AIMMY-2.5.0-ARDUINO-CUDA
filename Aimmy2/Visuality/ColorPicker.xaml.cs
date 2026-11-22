@@ -1,4 +1,4 @@
-﻿using Aimmy2.Theme;
+﻿using Whales2.Theme;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;

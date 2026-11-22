@@ -1,4 +1,4 @@
-using Aimmy2.Theme;
+using Whales2.Theme;
 using Other;
 using System.Diagnostics;
 using System.Net.Http;
@@ -9,7 +9,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 
-namespace Aimmy2.Controls
+namespace Whales2.Controls
 {
     public partial class AboutMenuControl : UserControl
     {
@@ -58,7 +58,7 @@ namespace Aimmy2.Controls
 
             // Use ThemeManager directly for theme color
             _themeColor = new SolidColorBrush(ThemeManager.ThemeColor);
-            _fontFamily = Application.Current.TryFindResource("Atkinson Hyperlegible") as FontFamily
+            _fontFamily = Application.Current.TryFindResource("UIFont") as FontFamily
                 ?? new FontFamily("Segoe UI"); // Fallback font
 
             LoadCoreTeam();
@@ -293,7 +293,7 @@ namespace Aimmy2.Controls
             {
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = "https://github.com/Babyhamsta/Aimmy",
+                    FileName = "https://github.com/Babyhamsta/Whales",
                     UseShellExecute = true
                 });
             }
@@ -306,7 +306,7 @@ namespace Aimmy2.Controls
             {
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = "https://discord.gg/aimmy",
+                    FileName = "https://discord.gg/Whales",
                     UseShellExecute = true
                 });
             }
@@ -320,7 +320,7 @@ namespace Aimmy2.Controls
                 var version = AboutDesc.Content?.ToString()?.TrimStart('v') ?? "2.5.0";
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = $"https://github.com/Babyhamsta/Aimmy/releases/tag/v{version}",
+                    FileName = $"https://github.com/Babyhamsta/Whales/releases/tag/v{version}",
                     UseShellExecute = true
                 });
             }

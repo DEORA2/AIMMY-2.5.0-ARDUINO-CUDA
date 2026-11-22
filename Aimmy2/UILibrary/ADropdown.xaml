@@ -3,43 +3,40 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-             xmlns:Ant="clr-namespace:AntWpf.Controls;assembly=AntWpf"
              xmlns:local="clr-namespace:UILibrary"
              mc:Ignorable="d"
              d:DesignWidth="282.5"
-             Height="80">
+             Height="46">
+    <!-- Title on the left, current choice right-aligned like a value -->
     <Grid>
-        <Border Height="80"
-                Background="#3F3C3C3C"
-                CornerRadius="00"
-                BorderThickness="1,0,1,0"
-                BorderBrush="#3FFFFFFF">
-            <Grid>
-                <Label x:Name="DropdownTitle"
-                       Padding="10,10,10,10"
-                       FontFamily="{StaticResource Atkinson Hyperlegible}"
-                       Content="Prediction Method"
-                       Foreground="#DDFFFFFF"
-                       VerticalContentAlignment="Center"
-                       FontSize="13"
-                       VerticalAlignment="Top"
-                       Height="40" />
-                <ComboBox x:Name="DropdownBox"
-                          Height="30"
-                          Margin="10,0,10,10"
-                          VerticalAlignment="Bottom"
-                          Foreground="White"
-                          Ant:Input.PlaceholderBrush="#FFC8C8C8"
-                          BorderBrush="#3FFFFFFF"
-                          Padding="5,0,5,0"
-                          BorderThickness="1,1,1,1"
-                          Background="{x:Null}"
-                          SelectedIndex="0"
-                          FontFamily="{StaticResource Atkinson Hyperlegible}"
-                          SelectionChanged="DropdownBox_SelectionChanged">
-                </ComboBox>
-            </Grid>
-        </Border>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" MinWidth="110" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.ColumnSpan="2" Style="{StaticResource UI.RowHighlight}" />
+        <Rectangle Style="{StaticResource UI.RowAccent}" />
+
+        <Label x:Name="DropdownTitle"
+               Style="{StaticResource UI.RowLabel}"
+               Content="Prediction Method" />
+
+        <ComboBox x:Name="DropdownBox"
+                  Grid.Column="1"
+                  Height="30"
+                  Margin="8,0,14,0"
+                  MaxWidth="210"
+                  VerticalAlignment="Center"
+                  Foreground="{StaticResource UI.Text}"
+                  BorderBrush="{StaticResource UI.Line}"
+                  BorderThickness="0,0,0,1"
+                  Padding="6,0,4,0"
+                  Background="{x:Null}"
+                  HorizontalContentAlignment="Right"
+                  SelectedIndex="0"
+                  FontSize="14"
+                  FontFamily="{StaticResource UIFont}"
+                  SelectionChanged="DropdownBox_SelectionChanged">
+        </ComboBox>
     </Grid>
 </UserControl>

@@ -47,6 +47,90 @@ namespace InputLogic
             }
         }
 
+        internal static Point SineWave(Point start, Point end, double t, double amplitude = 15.0, double frequency = 2.0)
+        {
+            double baseX = start.X + (end.X - start.X) * t;
+            double baseY = start.Y + (end.Y - start.Y) * t;
+
+            double perpX = -(end.Y - start.Y);
+            double perpY = end.X - start.X;
+            double perpLength = Math.Sqrt(perpX * perpX + perpY * perpY);
+
+            if (perpLength > 0)
+            {
+                perpX /= perpLength;
+                perpY /= perpLength;
+            }
+
+            double wave = Math.Sin(t * Math.PI * frequency) * amplitude * Math.Sin(t * Math.PI);
+
+            return new Point((int)(baseX + perpX * wave), (int)(baseY + perpY * wave));
+        }
+
+        internal static Point EaseInOut(Point start, Point end, double t)
+        {
+            double eased = t < 0.5
+                ? 2 * t * t
+                : 1 - Math.Pow(-2 * t + 2, 2) / 2;
+
+            double x = start.X + (end.X - start.X) * eased;
+            double y = start.Y + (end.Y - start.Y) * eased;
+            return new Point((int)x, (int)y);
+        }
+
+        internal static Point Overshoot(Point start, Point end, double t, double strength = 1.15)
+        {
+            double eased = 1 + (strength - 1) * Math.Sin(t * Math.PI);
+            double x = start.X + (end.X - start.X) * t * eased;
+            double y = start.Y + (end.Y - start.Y) * t * eased;
+            return new Point((int)x, (int)y);
+        }
+
+        internal static Point CatmullRom(Point start, Point end, double t, double tension = 0.5)
+        {
+            double dx = end.X - start.X;
+            double dy = end.Y - start.Y;
+
+            Point p0 = new Point(start.X - (int)(dx * tension * 0.5), start.Y - (int)(dy * tension * 0.5));
+            Point p3 = new Point(end.X + (int)(dx * tension * 0.5), end.Y + (int)(dy * tension * 0.5));
+
+            double t2 = t * t;
+            double t3 = t2 * t;
+
+            double x = 0.5 * ((2 * start.X) +
+                       (-p0.X + end.X) * t +
+                       (2 * p0.X - 5 * start.X + 4 * end.X - p3.X) * t2 +
+                       (-p0.X + 3 * start.X - 3 * end.X + p3.X) * t3);
+
+            double y = 0.5 * ((2 * start.Y) +
+                       (-p0.Y + end.Y) * t +
+                       (2 * p0.Y - 5 * start.Y + 4 * end.Y - p3.Y) * t2 +
+                       (-p0.Y + 3 * start.Y - 3 * end.Y + p3.Y) * t3);
+
+            return new Point((int)x, (int)y);
+        }
+
+        internal static Point SmoothStep(Point start, Point end, double t)
+        {
+            double eased = t * t * (3 - 2 * t);
+            double x = start.X + (end.X - start.X) * eased;
+            double y = start.Y + (end.Y - start.Y) * eased;
+            return new Point((int)x, (int)y);
+        }
+
+        internal static Point Spiral(Point start, Point end, double t, double radius = 8.0)
+        {
+            double baseX = start.X + (end.X - start.X) * t;
+            double baseY = start.Y + (end.Y - start.Y) * t;
+
+            double decay = 1 - t;
+            double angle = t * Math.PI * 4;
+            double offsetX = Math.Cos(angle) * radius * decay;
+            double offsetY = Math.Sin(angle) * radius * decay;
+
+            return new Point((int)(baseX + offsetX), (int)(baseY + offsetY));
+        }
+
         internal static Point PerlinNoise(Point start, Point end, double t, double amplitude = 10.0, double frequency = 0.1)
         {
             double baseX = start.X + (end.X - start.X) * t;

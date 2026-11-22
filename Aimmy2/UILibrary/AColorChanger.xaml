@@ -1,46 +1,35 @@
-﻿<UserControl x:Class="Aimmy2.UILibrary.AColorChanger"
+﻿<UserControl x:Class="Whales2.UILibrary.AColorChanger"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-             xmlns:Ant="clr-namespace:AntWpf.Controls;assembly=AntWpf"
-             xmlns:local="clr-namespace:Aimmy2.UILibrary"
+             xmlns:local="clr-namespace:Whales2.UILibrary"
              mc:Ignorable="d"
              d:DesignWidth="282.5"
+             d:DesignHeight="46">
+    <Grid Height="46">
+        <Border Style="{StaticResource UI.RowHighlight}" />
+        <Rectangle Style="{StaticResource UI.RowAccent}" />
 
-             d:DesignHeight="40">
-    <Grid>
-        <Border Height="40"
-                Background="#3F3C3C3C"
-                CornerRadius="0"
-                BorderThickness="1,0,1,0"
-                BorderBrush="#3FFFFFFF">
-            <Grid>
-                <Label x:Name="ColorChangerTitle"
-                       Padding="10,10,10,10"
-                       FontFamily="{StaticResource Atkinson Hyperlegible}"
-                       Content="Change Aim Keybind"
-                       Foreground="#DDFFFFFF"
-                       VerticalContentAlignment="Center"
-                       FontSize="13"
-                       Margin="0,0,76,0" />
+        <Label x:Name="ColorChangerTitle"
+               Style="{StaticResource UI.RowLabel}"
+               Content="Change Aim Keybind"
+               Margin="0,0,60,0" />
 
-                <Border x:Name="ColorChangingBorder"
-                        HorizontalAlignment="Right"
-                        Width="20"
-                        Margin="0,10,10,10"
-                        Background="Red"
-                        CornerRadius="5">
-                </Border>
-
-                <Button x:Name="Reader"
-                        Background="{x:Null}"
-                        BorderBrush="{x:Null}"
-                        Padding="0,0,0,0"
-                        Height="40"
-                        Margin="0"></Button>
-            </Grid>
+        <!-- Color swatch framed like the checkbox -->
+        <Border HorizontalAlignment="Right"
+                VerticalAlignment="Center"
+                Width="22"
+                Height="22"
+                Margin="0,0,16,0"
+                BorderBrush="{StaticResource UI.Box}"
+                BorderThickness="2"
+                Padding="2">
+            <Border x:Name="ColorChangingBorder"
+                    Background="Red" />
         </Border>
+
+        <Button x:Name="Reader"
+                Style="{StaticResource UI.RowReader}" />
     </Grid>
 </UserControl>

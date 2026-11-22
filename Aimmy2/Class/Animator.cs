@@ -1,7 +1,7 @@
 ﻿using System.Windows;
 using System.Windows.Media.Animation;
 
-namespace AimmyWPF.Class
+namespace WhalesWPF.Class
 {
     public static class Animator
     {

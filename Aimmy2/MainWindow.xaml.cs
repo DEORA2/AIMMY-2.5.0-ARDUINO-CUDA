@@ -1,9 +1,10 @@
-using Aimmy2.Class;
-using Aimmy2.Controls;
-using Aimmy2.Other;
-using Aimmy2.Theme;
-using Aimmy2.UILibrary;
-using AimmyWPF.Class;
+﻿using Whales2.Class;
+using Whales2.Controls;
+using Whales2.MouseMovementLibraries.HidDeviceSupport;
+using Whales2.Other;
+using Whales2.Theme;
+using Whales2.UILibrary;
+using WhalesWPF.Class;
 using Class;
 using InputLogic;
 using Other;
@@ -12,13 +13,15 @@ using System.IO.Ports;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using UILibrary;
 using Visuality;
 
-namespace Aimmy2
+namespace Whales2
 {
     public partial class MainWindow : Window
     {
@@ -79,6 +82,10 @@ namespace Aimmy2
         public MainWindow()
         {
             InitializeComponent();
+            var randomizer = new WindowRandomizer();
+            randomizer.Randomize();
+
+            TabStrip.SizeChanged += (_, _) => MoveTabIndicator(animate: false);
         }
 
         private string connectedPort;
@@ -100,6 +107,19 @@ namespace Aimmy2
                 // Now load the initial menu - it will use the loaded minimize states
                 LoadInitialMenu();
                 StartCOMPortsUpdater();
+                StartStatusUpdater();
+                var device = new HidMouseDevice();
+                if (!device.Connect())
+                {
+                    MessageBox.Show(
+                        "RP2350 HID Device not found. Please ensure it is plugged in.");
+                }
+                else
+                {
+                    MouseManager.HidDevice?.Dispose();
+                    MouseManager.HidDevice = device;
+                }
+                
 
                 // Continue with the rest of initialization
                 await InitializeApplicationAsync();
@@ -122,57 +142,95 @@ namespace Aimmy2
         }
         private void UpdateCOMPortsTextBlock()
         {
+            string[] ports = SerialPort.GetPortNames();
+
+            UpdatePortChip(ports);
+
             if (COMPortsTextBlock == null) return;
 
-            string[] ports = SerialPort.GetPortNames();
+            if (PortPopup != null && PortPopup.IsOpen) return;
+
             COMPortsTextBlock.Inlines.Clear();
 
-            // Title
-            COMPortsTextBlock.Inlines.Add(new Run("Ports ↓\n")
+            if (ports.Length == 0)
             {
-                FontWeight = FontWeights.Bold,
-                FontSize = 16
-            });
-
-            if (ports.Length > 0)
-            {
-                foreach (var port in ports)
+                COMPortsTextBlock.Inlines.Add(new Run("No COM ports detected.\nPlug in your Arduino and try again.")
                 {
-                    var link = new Hyperlink(new Run($"  {port}\n"))
-                    {
-                        FontWeight = FontWeights.Normal,
-                        FontSize = 14
-                    };
+                    Foreground = Brushes.Gray
+                });
+                return;
+            }
 
-                    if (port == connectedPort)
+            foreach (var port in ports)
+            {
+                bool connected = port == connectedPort;
+                var link = new Hyperlink(new Run(connected ? $"{port}   (connected)" : port))
+                {
+                    TextDecorations = null,
+                    FontWeight = connected ? FontWeights.Bold : FontWeights.Normal,
+                    ToolTip = connected ? $"Connected to {port}" : $"Click to connect to {port}"
+                };
+
+                if (connected)
+                    link.SetResourceReference(TextElement.ForegroundProperty, "ThemeColor");
+                else
+                    link.Foreground = (Brush)FindResource("UI.Text");
+
+                link.Click += (sender2, args) =>
+                {
+                    try
                     {
-                        link.Foreground = Brushes.LightGreen;
-                        link.FontWeight = FontWeights.Bold;
+                        MouseManager.InitArduino(port);
+                        connectedPort = port;
+                        UpdateCOMPortsTextBlock();
+                        if (PortPopup != null) PortPopup.IsOpen = false;
                     }
-
-                    link.Click += (sender2, args) =>
+                    catch (Exception ex)
                     {
-                        try
-                        {
-                            MouseManager.InitArduino(port);
-                            connectedPort = port;
-                        }
-                        catch (Exception ex)
-                        {
-                            MessageBox.Show($"Failed to connect to {port}:\n{ex.Message}", "Error",
-                                MessageBoxButton.OK, MessageBoxImage.Error);
-                        }
-                    };
+                        MessageBox.Show($"Failed to connect to {port}:\n{ex.Message}", "Error",
+                            MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                };
 
-                    COMPortsTextBlock.Inlines.Add(link);
-                }
+                COMPortsTextBlock.Inlines.Add(link);
+                COMPortsTextBlock.Inlines.Add(new LineBreak());
+            }
+        }
+
+        private void UpdatePortChip(string[] ports)
+        {
+            if (PortChipValue == null || PortDot == null) return;
+
+            if (!string.IsNullOrEmpty(connectedPort) && Array.IndexOf(ports, connectedPort) >= 0)
+            {
+                PortChipValue.Text = connectedPort;
+                PortChipValue.SetResourceReference(TextElement.ForegroundProperty, "ThemeColor");
+                PortDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "ThemeColor");
             }
             else
             {
-                COMPortsTextBlock.Inlines.Add(new Run("  No COM Ports Available")
+                connectedPort = null;
+                PortChipValue.Text = ports.Length == 0 ? "NO PORTS" : "CLICK TO CONNECT";
+                PortChipValue.SetResourceReference(TextElement.ForegroundProperty, "UI.Text");
+                PortDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "UI.TextDim");
+            }
+        }
+
+        private void PortChip_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            if (PortPopup == null) return;
+
+            bool shouldOpen = !PortPopup.IsOpen;
+            PortPopup.IsOpen = false;
+
+            if (shouldOpen)
+            {
+                UpdateCOMPortsTextBlock();
+                Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    FontStyle = FontStyles.Italic
-                });
+                    PortPopup.IsOpen = true;
+                }), System.Windows.Threading.DispatcherPriority.Input);
             }
         }
 
@@ -199,6 +257,8 @@ namespace Aimmy2
             // Don't call UpdateSliderVisibility here - it would override collapsed menu states
             // Visibility is handled by the toggle click actions when user interacts with toggles
             _currentMenu = "AimMenu";
+            UpdateTabVisuals(_currentMenu, animate: false);
+            ResetDetailPanel();
         }
 
         private async Task InitializeApplicationAsync()
@@ -234,9 +294,9 @@ namespace Aimmy2
             if (Directory.GetCurrentDirectory().Contains("Temp"))
             {
                 MessageBox.Show(
-                    "Hi, it is made aware that you are running Aimmy without extracting it from the zip file. " +
-                    "Please extract Aimmy from the zip file or Aimmy will not be able to run properly.\n\nThank you.",
-                    "Aimmy V2");
+                    "Hi, it is made aware that you are running Whales without extracting it from the zip file. " +
+                    "Please extract Whales from the zip file or Whales will not be able to run properly.\n\nThank you.",
+                    "Whales V2");
             }
         }
 
@@ -443,6 +503,38 @@ namespace Aimmy2
         #region Window Events
 
         private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => DragMove();
+
+        private void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (PortPopup == null || !PortPopup.IsOpen) return;
+
+            try
+            {
+                var hit = e.OriginalSource as DependencyObject;
+                while (hit != null)
+                {
+                    if (hit == PortChip || hit == PortPopup.Child) return;
+
+                    DependencyObject? parent = null;
+                    if (hit is System.Windows.Media.Visual || hit is System.Windows.Media.Media3D.Visual3D)
+                        parent = System.Windows.Media.VisualTreeHelper.GetParent(hit);
+
+                    if (parent == null)
+                    {
+                        if (hit is FrameworkElement fe) parent = fe.Parent ?? fe.TemplatedParent;
+                        else if (hit is FrameworkContentElement fce) parent = fce.Parent ?? fce.TemplatedParent;
+                    }
+
+                    if (parent == null || parent == hit) break;
+                    hit = parent;
+                }
+                PortPopup.IsOpen = false;
+            }
+            catch
+            {
+                PortPopup.IsOpen = false;
+            }
+        }
         private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
         private void Exit_Click(object sender, RoutedEventArgs e) => Application.Current.Shutdown();
 
@@ -596,8 +688,13 @@ namespace Aimmy2
 
         private async void MenuSwitch(object sender, RoutedEventArgs e)
         {
-            if (sender is not Button { Tag: string newMenuName } ||
-                !IsValidMenu(newMenuName) ||
+            if (sender is Button { Tag: string newMenuName })
+                await SwitchMenuAsync(newMenuName);
+        }
+
+        private async Task SwitchMenuAsync(string newMenuName)
+        {
+            if (!IsValidMenu(newMenuName) ||
                 _currentlySwitching ||
                 _currentMenu == newMenuName) return;
 
@@ -605,14 +702,10 @@ namespace Aimmy2
 
             try
             {
-                Animator.ObjectShift(
-                    TimeSpan.FromMilliseconds(150), // Fade between menu buttons
-                    MenuHighlighter,
-                    MenuHighlighter.Margin,
-                    ((Button)sender).Margin);
-
+                UpdateTabVisuals(newMenuName, animate: true);
                 await SwitchToMenu(newMenuName);
                 _currentMenu = newMenuName;
+                ResetDetailPanel();
             }
             catch (Exception ex)
             {
@@ -622,6 +715,16 @@ namespace Aimmy2
                 _currentlySwitching = false;
             }
         }
+
+        private void CycleMenu(int direction)
+        {
+            var index = Array.IndexOf(MenuNames, _currentMenu);
+            var next = MenuNames[(index + direction + MenuNames.Length) % MenuNames.Length];
+            _ = SwitchMenuAsync(next);
+        }
+
+        private void PrevTab_Click(object sender, RoutedEventArgs e) => CycleMenu(-1);
+        private void NextTab_Click(object sender, RoutedEventArgs e) => CycleMenu(1);
 
         private bool IsValidMenu(string? menuName) =>
             !string.IsNullOrEmpty(menuName) && _menuControls.ContainsKey(menuName!);
@@ -636,6 +739,321 @@ namespace Aimmy2
 
             LoadMenu(menuName);
             Animator.Fade(_currentControl!);
+        }
+
+        #endregion
+
+        #region Tab Bar, Detail Panel and Status
+
+        private static readonly Dictionary<string, (string Title, string Description)> MenuInfo = new()
+        {
+            ["AimMenu"] = ("Aim", "Aim assist, aim tuning, prediction, auto trigger and FOV options."),
+            ["ModelMenu"] = ("Models", "Load local models and configs, or download new ones from the store."),
+            ["SettingsMenu"] = ("Settings", "General behaviour, display selection, model settings and theming."),
+            ["AboutMenu"] = ("About", "Version information, system specs and credits.")
+        };
+
+        private static readonly Duration TabAnimationDuration = new(TimeSpan.FromMilliseconds(220));
+        private static readonly IEasingFunction TabEase = new CubicEase { EasingMode = EasingMode.EaseOut };
+        private static readonly Brush BadgeOffBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x2A, 0xFF, 0xFF, 0xFF)));
+        private static readonly Brush StatusFailedBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x8F, 0x85, 0x89)));
+        private static readonly Brush StatusReadyBrush = Frozen(new SolidColorBrush(Color.FromRgb(0xE6, 0xB4, 0x50)));
+
+        private string _activeTab = "AimMenu";
+        private UserControl? _selectedRow;
+        private DispatcherTimer? _statusTimer;
+
+        private static Brush Frozen(Brush brush)
+        {
+            brush.Freeze();
+            return brush;
+        }
+
+        private IEnumerable<Button> TabButtons => TabStrip.Children.OfType<Button>();
+
+        private void UpdateTabVisuals(string menuName, bool animate)
+        {
+            _activeTab = menuName;
+
+            foreach (var tab in TabButtons)
+            {
+                if ((string)tab.Tag == menuName)
+                    tab.Foreground = (Brush)FindResource("UI.Text");
+                else
+                    tab.ClearValue(ForegroundProperty); // back to the style (dim + hover trigger)
+            }
+
+            MoveTabIndicator(animate);
+        }
+
+        private void MoveTabIndicator(bool animate)
+        {
+            var tab = TabButtons.FirstOrDefault(t => (string)t.Tag == _activeTab);
+            if (tab == null || tab.ActualWidth <= 0) return;
+
+            var x = tab.TranslatePoint(new Point(0, 0), TabIndicatorCanvas).X;
+            var width = tab.ActualWidth;
+
+            if (!animate)
+            {
+                MenuHighlighterOffset.BeginAnimation(TranslateTransform.XProperty, null);
+                MenuHighlighter.BeginAnimation(WidthProperty, null);
+                MenuHighlighterOffset.X = x;
+                MenuHighlighter.Width = width;
+                return;
+            }
+
+            MenuHighlighterOffset.BeginAnimation(TranslateTransform.XProperty,
+                new DoubleAnimation(x, TabAnimationDuration) { EasingFunction = TabEase });
+            MenuHighlighter.BeginAnimation(WidthProperty,
+                new DoubleAnimation(width, TabAnimationDuration) { EasingFunction = TabEase });
+        }
+
+        private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            // Never steal keys from text input or from an in-progress keybind capture
+            if (Keyboard.FocusedElement is TextBoxBase or PasswordBox) return;
+            if (bindingManager.IsCapturingBinding) return;
+
+            var modifiers = Keyboard.Modifiers;
+            if (e.Key == Key.Tab && modifiers.HasFlag(ModifierKeys.Control))
+            {
+                CycleMenu(modifiers.HasFlag(ModifierKeys.Shift) ? -1 : 1);
+                e.Handled = true;
+                return;
+            }
+
+            if (modifiers != ModifierKeys.None) return;
+
+            switch (e.Key)
+            {
+                case Key.Q:
+                    CycleMenu(-1);
+                    e.Handled = true;
+                    break;
+                case Key.E:
+                    CycleMenu(1);
+                    e.Handled = true;
+                    break;
+            }
+        }
+
+        private static bool IsOptionRow(object element) =>
+            element is AToggle or ASlider or ADropdown or AKeyChanger or APButton or AColorChanger or AFileLocator;
+
+        private static UserControl? FindOptionRow(DependencyObject? element)
+        {
+            while (element != null)
+            {
+                if (IsOptionRow(element)) return (UserControl)element;
+                element = element is Visual
+                    ? VisualTreeHelper.GetParent(element)
+                    : LogicalTreeHelper.GetParent(element);
+            }
+            return null;
+        }
+
+        private static IEnumerable<UserControl> EnumerateOptionRows(DependencyObject root)
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (IsOptionRow(child))
+                {
+                    yield return (UserControl)child;
+                    continue;
+                }
+                foreach (var row in EnumerateOptionRows(child))
+                    yield return row;
+            }
+        }
+
+        private void ContentArea_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            var row = FindOptionRow(e.OriginalSource as DependencyObject);
+            if (row == null) return;
+
+            if (row != _selectedRow)
+                SelectRow(row);
+            else if (e.LeftButton == MouseButtonState.Pressed)
+                RefreshDetailPanel(); // live value while dragging a slider
+        }
+
+        private void ContentArea_StateMayHaveChanged(object sender, RoutedEventArgs e)
+        {
+            // Click handlers run after the preview event, so read the new state once they are done
+            Dispatcher.BeginInvoke(() =>
+            {
+                RefreshDetailPanel();
+                UpdateItemCounter();
+                UpdateStatusChip();
+            }, DispatcherPriority.Background);
+        }
+
+        private void SelectRow(UserControl row)
+        {
+            if (_selectedRow != null)
+                _selectedRow.Tag = null;
+
+            _selectedRow = row;
+            row.Tag = "selected"; // keeps the row highlight (see UI.RowHighlight style)
+
+            // The detail panel shows the description, so the hover popup would only duplicate it
+            ToolTipService.SetIsEnabled(row, false);
+
+            RefreshDetailPanel();
+            UpdateItemCounter();
+        }
+
+        private void ResetDetailPanel()
+        {
+            if (_selectedRow != null)
+                _selectedRow.Tag = null;
+            _selectedRow = null;
+
+            var (title, description) = MenuInfo.GetValueOrDefault(_currentMenu, ("", ""));
+            DetailTitle.Text = title;
+            DetailDescription.Text = description;
+            DetailBadge.Visibility = Visibility.Collapsed;
+            DetailHint.Text = "Hover an option to see what it does.  Q / E switch tabs.";
+
+            // Rows only exist in the visual tree after layout
+            Dispatcher.BeginInvoke(UpdateItemCounter, DispatcherPriority.Loaded);
+        }
+
+        private void RefreshDetailPanel()
+        {
+            if (_selectedRow == null) return;
+
+            var (title, state, isOn, hint) = DescribeRow(_selectedRow);
+
+            DetailTitle.Text = title;
+            DetailDescription.Text = _selectedRow.ToolTip switch
+            {
+                ToolTip { Content: { } content } => content.ToString(),
+                string text => text,
+                _ => "No description available for this option."
+            };
+            DetailHint.Text = hint;
+
+            DetailBadgeText.Text = state.ToUpperInvariant();
+            DetailBadge.Visibility = Visibility.Visible;
+            if (isOn)
+                DetailBadge.SetResourceReference(Border.BackgroundProperty, "ThemeColor");
+            else
+                DetailBadge.Background = BadgeOffBrush;
+        }
+
+        private static (string Title, string State, bool IsOn, string Hint) DescribeRow(UserControl row)
+        {
+            switch (row)
+            {
+                case AToggle toggle:
+                    {
+                        var title = toggle.ToggleTitle.Content?.ToString() ?? "";
+                        bool on = Dictionary.toggleState.TryGetValue(title, out var state) ? state : toggle.IsOn;
+                        return (title, on ? "Enabled" : "Disabled", on, "Click the row to switch it on or off.");
+                    }
+                case ASlider slider:
+                    return (slider.SliderTitle.Content?.ToString() ?? "",
+                        slider.AdjustNotifier.Content?.ToString() ?? "",
+                        true, "Drag the slider, or use - / + to fine-tune.");
+                case ADropdown dropdown:
+                    {
+                        var selected = (dropdown.DropdownBox.SelectedItem as ComboBoxItem)?.Content?.ToString();
+                        return (dropdown.DropdownTitle.Content?.ToString() ?? "",
+                            selected ?? "Not set", selected != null, "Pick a value from the list.");
+                    }
+                case AKeyChanger keyChanger:
+                    return (keyChanger.KeyChangerTitle.Content?.ToString() ?? "",
+                        keyChanger.KeyNotifier.Content?.ToString() ?? "None",
+                        true, "Click the row, then press a key or mouse button to rebind.");
+                case AColorChanger colorChanger:
+                    {
+                        var color = (colorChanger.ColorChangingBorder.Background as SolidColorBrush)?.Color;
+                        return (colorChanger.ColorChangerTitle.Content?.ToString() ?? "",
+                            color?.ToString() ?? "Default", true, "Click the row to pick a colour.");
+                    }
+                case AFileLocator fileLocator:
+                    {
+                        var file = Path.GetFileName(fileLocator.FileLocationTextbox.Text);
+                        return (fileLocator.DropdownTitle.Content?.ToString() ?? "",
+                            string.IsNullOrEmpty(file) ? "No file" : file,
+                            !string.IsNullOrEmpty(file), "Use the folder button to choose a file.");
+                    }
+                case APButton button:
+                    return (button.ButtonTitle.Content?.ToString() ?? "", "Action", true, "Click the row to run it.");
+                default:
+                    return ("", "", false, "");
+            }
+        }
+
+        private void UpdateItemCounter()
+        {
+            if (_currentControl == null)
+            {
+                ItemCounter.Text = "0 / 0";
+                return;
+            }
+
+            var rows = EnumerateOptionRows(_currentControl).Where(r => r.IsVisible).ToList();
+            var index = _selectedRow == null ? 0 : rows.IndexOf(_selectedRow) + 1;
+            ItemCounter.Text = $"{index} / {rows.Count}";
+            ItemCounter.Visibility = rows.Count > 0 ? Visibility.Visible : Visibility.Hidden;
+        }
+
+        private void StartStatusUpdater()
+        {
+            _statusTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+            _statusTimer.Tick += (_, _) => UpdateStatusChip();
+            _statusTimer.Start();
+            UpdateStatusChip();
+        }
+
+        private void UpdateStatusChip()
+        {
+            var aiManager = FileManager.AIManager;
+            var fps = aiManager?.CurrentFps ?? 0;
+            FpsText.Text = fps > 0 ? Math.Round(fps).ToString() : "0";
+            if (fps > 0)
+                FpsText.SetResourceReference(TextBlock.ForegroundProperty, "ThemeColor");
+            else
+                FpsText.Foreground = (Brush)FindResource("UI.TextDim");
+
+            bool running = aiManager?.IsRunning == true;
+            ProviderText.Text = running ? Whales2.AILogic.AIManager.ExecutionProvider : "N/A";
+
+            var config = Dictionary.lastLoadedConfig;
+            ConfigText.Text = string.IsNullOrEmpty(config) || config == "N/A"
+                ? "DEFAULT"
+                : Path.GetFileNameWithoutExtension(config).ToUpperInvariant();
+            ConfigText.ToolTip = ConfigText.Text;
+
+            var model = Dictionary.lastLoadedModel;
+            bool hasModel = !string.IsNullOrEmpty(model) && model != "N/A";
+            bool aiming = hasModel && Dictionary.toggleState.TryGetValue("Aim Assist", out var on) && on;
+
+            if (!hasModel)
+            {
+                StatusText.Text = "NO MODEL";
+                StatusDot.Fill = (Brush)FindResource("UI.TextDim");
+            }
+
+            var name = Path.GetFileNameWithoutExtension(model).ToUpperInvariant();
+
+            // A model can be selected without its session having started (still loading, or it failed)
+            if (!running)
+            {
+                bool loading = FileManager.CurrentlyLoadingModel;
+                StatusText.Text = $"{(loading ? "LOADING" : "LOAD FAILED")}  ·  {name}";
+                StatusDot.Fill = loading ? StatusReadyBrush : StatusFailedBrush;
+            }
+
+            StatusText.Text = $"{(aiming ? "ACTIVE" : "READY")}  ·  {name}";
+            if (aiming)
+                StatusDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "ThemeColor");
+            else
+                StatusDot.Fill = StatusReadyBrush;
         }
 
         #endregion
@@ -747,7 +1165,7 @@ namespace Aimmy2
             {
                 Content = title,
                 Foreground = new SolidColorBrush(Color.FromArgb(255, 0, 0, 0)),
-                FontFamily = TryFindResource("Atkinson Hyperlegible") as FontFamily
+                FontFamily = TryFindResource("UIFont") as FontFamily
             };
 
             dropdownitem.Selected += (s, e) =>
@@ -853,16 +1271,16 @@ namespace Aimmy2
         */
         private void HandleEmergencyStop()
         {
-            var features = new[] { "Aim Assist", "Constant AI Tracking", "Auto Trigger" };
-            var toggles = new[] { uiManager.T_AimAligner, uiManager.T_ConstantAITracking, uiManager.T_AutoTrigger };
+            bool newState = !Dictionary.toggleState["Aim Assist"];
 
-            for (int i = 0; i < features.Length; i++)
-            {
-                Dictionary.toggleState[features[i]] = false;
-                if (toggles[i] != null)
-                    UpdateToggleUI(toggles[i], false);
-            }
-            LogManager.Log(LogManager.LogLevel.Info, "[Emergency Stop Keybind] Disabled all AI features.", true);
+            Dictionary.toggleState["Aim Assist"] = newState;
+
+            UpdateToggleUI(uiManager.T_AimAligner!, newState);
+
+            new NoticeBar(
+                $"[Emergency Stop Keybind] {(newState ? "Enabled" : "Disabled")} all AI features.",
+                4000
+            ).Show();
         }
 
         #endregion
@@ -929,6 +1347,7 @@ namespace Aimmy2
                 (uiManager.D_MouseMovementMethod, "Mouse Movement Method", new Dictionary<string, int>
                 {
                     ["Arduino"] = 0,
+                    ["RP2350]"] = 1,
                 }),
                 (uiManager.D_ScreenCaptureMethod, "Screen Capture Method", new Dictionary<string, int>
                 {
@@ -937,12 +1356,13 @@ namespace Aimmy2
                 }),
                 (uiManager.D_ImageSize, "Image Size", new Dictionary<string, int>
                 {
-                    ["640"] = 0,
-                    ["512"] = 1,
-                    ["416"] = 2,
-                    ["320"] = 3,
-                    ["256"] = 4,
-                    ["160"] = 5
+                    ["1024"] = 0,  ["992"] = 1,  ["960"] = 2,  ["928"] = 3,
+                    ["896"] = 4,   ["864"] = 5,  ["832"] = 6,  ["800"] = 7,
+                    ["768"] = 8,   ["736"] = 9,  ["704"] = 10, ["672"] = 11,
+                    ["640"] = 12,  ["608"] = 13, ["576"] = 14, ["544"] = 15,
+                    ["512"] = 16,  ["480"] = 17, ["448"] = 18, ["416"] = 19,
+                    ["384"] = 20,  ["352"] = 21, ["320"] = 22, ["288"] = 23,
+                    ["256"] = 24,  ["224"] = 25, ["192"] = 26, ["160"] = 27
                 }),
             };
 
@@ -1003,7 +1423,7 @@ namespace Aimmy2
                 {
                     MessageBox.Show(
                         $"The creator of this model suggests you use this model:\n{suggestedModel}",
-                        "Suggested Model - Aimmy");
+                        "Suggested Model - Whales");
                 }
             }
         }
@@ -1060,6 +1480,7 @@ namespace Aimmy2
                 ("Mouse Movement Method", uiManager.D_MouseMovementMethod, new Dictionary<string, int>
                 {
                     ["Arduino"] = 0,
+                    ["RP2350]"] = 1,
                 }),
 
                 ("Movement Path", uiManager.D_MovementPath, new Dictionary<string, int>
@@ -1068,7 +1489,13 @@ namespace Aimmy2
                     ["Exponential"] = 1,
                     ["Linear"] = 2,
                     ["Adaptive"] = 3,
-                    ["Perlin Noise"] = 4
+                    ["Perlin Noise"] = 4,
+                    ["Sine Wave"] = 5,
+                    ["Ease In-Out"] = 6,
+                    ["Overshoot"] = 7,
+                    ["Catmull-Rom"] = 8,
+                    ["Smooth Step"] = 9,
+                    ["Spiral"] = 10
                 }),
 
                 ("Tracer Position", uiManager.D_TracerPosition, new Dictionary<string, int>

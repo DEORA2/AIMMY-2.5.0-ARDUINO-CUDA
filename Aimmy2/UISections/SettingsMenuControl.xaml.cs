@@ -1,6 +1,6 @@
-﻿using Aimmy2.AILogic;
-using Aimmy2.Class;
-using Aimmy2.UILibrary;
+﻿using Whales2.AILogic;
+using Whales2.Class;
+using Whales2.UILibrary;
 using Other;
 using System.Windows;
 using System.Windows.Controls;
@@ -8,7 +8,7 @@ using UILibrary;
 using Visuality;
 using LogLevel = Other.LogManager.LogLevel;
 
-namespace Aimmy2.Controls
+namespace Whales2.Controls
 {
     public partial class SettingsMenuControl : UserControl
     {
@@ -151,13 +151,16 @@ namespace Aimmy2.Controls
                 {
                     uiManager.D_ImageSize = d;
 
-                    // Add size options
-                    _mainWindow.AddDropdownItem(d, "640");
-                    _mainWindow.AddDropdownItem(d, "512");
-                    _mainWindow.AddDropdownItem(d, "416");
-                    _mainWindow.AddDropdownItem(d, "320");
-                    _mainWindow.AddDropdownItem(d, "256");
-                    _mainWindow.AddDropdownItem(d, "160");
+                    // Add size options — every multiple of 32 from 160 to 1024 (YOLO stride).
+                    string[] sizes =
+                    {
+                        "1024", "992", "960", "928", "896", "864", "832", "800",
+                        "768", "736", "704", "672", "640", "608", "576", "544",
+                        "512", "480", "448", "416", "384", "352", "320", "288",
+                        "256", "224", "192", "160"
+                    };
+                    foreach (var size in sizes)
+                        _mainWindow.AddDropdownItem(d, size);
 
                     // Set default to current value
                     var currentSize = Dictionary.dropdownState["Image Size"];
@@ -238,9 +241,9 @@ namespace Aimmy2.Controls
                     {
                         var value = s.Slider.Value;
                         if (value >= 95)
-                            LogManager.Log(LogLevel.Warning, "The minimum confidence you have set for Aimmy to be too high and may be unable to detect players.", true);
+                            LogManager.Log(LogLevel.Warning, "The minimum confidence you have set for Whales to be too high and may be unable to detect players.", true);
                         else if (value <= 35)
-                            LogManager.Log(LogLevel.Warning, "The minimum confidence you have set for Aimmy may be too low can cause false positives.", true);
+                            LogManager.Log(LogLevel.Warning, "The minimum confidence you have set for Whales may be too low can cause false positives.", true);
                     };
                 }, tooltip: "How sure the AI must be before targeting. Higher = fewer false detections but may miss targets.")
                 .AddToggle("Enable Model Switch Keybind", t => uiManager.T_EnableModelSwitchKeybind = t,
@@ -384,7 +387,7 @@ namespace Aimmy2.Controls
         private async Task ResetToMouseEvent()
         {
             await Task.Delay(500);
-            _mainWindow!.uiManager.D_MouseMovementMethod!.DropdownBox.SelectedIndex = 0;
+            _mainWindow!.uiManager.D_MouseMovementMethod!.DropdownBox.SelectedIndex = 1;
         }
 
         public void UpdateImageSizeDropdown(string newSize)

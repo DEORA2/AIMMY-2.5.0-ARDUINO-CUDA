@@ -1,6 +1,6 @@
-﻿using Aimmy2.AILogic;
-using Aimmy2.Class;
-using Aimmy2.UILibrary;
+﻿using Whales2.AILogic;
+using Whales2.Class;
+using Whales2.UILibrary;
 using Class;
 using InputLogic;
 using Other;
@@ -9,7 +9,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using UILibrary;
 
-namespace Aimmy2.Controls
+namespace Whales2.Controls
 {
     public partial class AimMenuControl : UserControl
     {
@@ -225,6 +225,7 @@ namespace Aimmy2.Controls
 
                     // Add options
                     _mainWindow.AddDropdownItem(d, "Arduino");
+                    _mainWindow.AddDropdownItem(d, "RP2350");
 
                 }, tooltip: "How mouse movements are sent. Try different options if aim assist isn't working.")
                 .AddDropdown("Movement Path", d =>
@@ -236,6 +237,12 @@ namespace Aimmy2.Controls
                     _mainWindow.AddDropdownItem(d, "Linear");
                     _mainWindow.AddDropdownItem(d, "Adaptive");
                     _mainWindow.AddDropdownItem(d, "Perlin Noise");
+                    _mainWindow.AddDropdownItem(d, "Sine Wave");
+                    _mainWindow.AddDropdownItem(d, "Ease In-Out");
+                    _mainWindow.AddDropdownItem(d, "Overshoot");
+                    _mainWindow.AddDropdownItem(d, "Catmull-Rom");
+                    _mainWindow.AddDropdownItem(d, "Smooth Step");
+                    _mainWindow.AddDropdownItem(d, "Spiral");
                 }, tooltip: "The curve style used when moving to a target. Affects how natural the movement looks.")
                 .AddDropdown("Detection Area Type", d =>
                 {
@@ -278,10 +285,10 @@ namespace Aimmy2.Controls
                         var value = s.Slider.Value;
                         if (value >= 0.98)
                             LogManager.Log(LogManager.LogLevel.Warning,
-                                "The Mouse Sensitivity you have set can cause Aimmy to be unable to aim, please decrease if you suffer from this problem", true);
+                                "The Mouse Sensitivity you have set can cause Whales to be unable to aim, please decrease if you suffer from this problem", true);
                         else if (value <= 0.1)
                             LogManager.Log(LogManager.LogLevel.Warning,
-                                "The Mouse Sensitivity you have set can cause Aimmy to be unstable to aim, please increase if you suffer from this problem", true);
+                                "The Mouse Sensitivity you have set can cause Whales to be unstable to aim, please increase if you suffer from this problem", true);
                     };
                 }, tooltip: "How fast the aim moves. Lower = faster and snappier, higher = slower and smoother.")
                 .AddSlider("Mouse Jitter", "Jitter", 1, 1, 0, 15, s => uiManager.S_MouseJitter = s,

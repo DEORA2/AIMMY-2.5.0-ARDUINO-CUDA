@@ -1,4 +1,4 @@
-﻿using Aimmy2.Class;
+﻿using Whales2.Class;
 using Microsoft.Win32;
 using System.IO;
 using UserControl = System.Windows.Controls.UserControl;

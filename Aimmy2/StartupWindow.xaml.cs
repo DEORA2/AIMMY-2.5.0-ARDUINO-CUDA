@@ -1,4 +1,4 @@
-﻿using Aimmy2.Theme;
+﻿using Whales2.Theme;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -7,7 +7,7 @@ using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 
-namespace Aimmy2
+namespace Whales2
 {
     public partial class StartupWindow : Window
     {
@@ -142,7 +142,7 @@ namespace Aimmy2
             UpdateCentralGlow(baseColor);
 
             // Keep white shadow for logo
-            if (FindName("AimmyLogo") is Path logo && logo.Effect is DropShadowEffect shadowEffect)
+            if (FindName("WhalesLogo") is Path logo && logo.Effect is DropShadowEffect shadowEffect)
                 shadowEffect.Color = Colors.White;
         }
 

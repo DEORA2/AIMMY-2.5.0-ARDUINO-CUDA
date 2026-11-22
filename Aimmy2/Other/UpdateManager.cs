@@ -1,4 +1,4 @@
-﻿using Aimmy2.Other;
+﻿using Whales2.Other;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -40,7 +40,7 @@ namespace Other
         public async Task CheckForUpdate(string currentVersion)
         {
             GithubManager githubManager = new();
-            var (latestVersion, latestZipUrl) = await githubManager.GetLatestReleaseInfo("Babyhamsta", "Aimmy");
+            var (latestVersion, latestZipUrl) = await githubManager.GetLatestReleaseInfo("Babyhamsta", "Whales");
 
             if (string.IsNullOrEmpty(latestVersion) || string.IsNullOrEmpty(latestZipUrl))
             {
@@ -70,9 +70,9 @@ namespace Other
 
         private async Task DoUpdate(string latestZipUrl)
         {
-            // Download the newest release of Aimmy to %temp%
+            // Download the newest release of Whales to %temp%
             string envTempPath = Path.GetTempPath();
-            string localZipPath = Path.Combine(envTempPath, "AimmyUpdate.zip");
+            string localZipPath = Path.Combine(envTempPath, "WhalesUpdate.zip");
 
             var response = await client.GetAsync(new Uri(latestZipUrl), HttpCompletionOption.ResponseHeadersRead);
 
@@ -81,13 +81,13 @@ namespace Other
             await stream.CopyToAsync(fileStream);
 
             // Extract update to %temp%
-            string extractPath = Path.Combine(envTempPath, "AimmyUpdate");
+            string extractPath = Path.Combine(envTempPath, "WhalesUpdate");
             await Task.Run(() => // Run extraction in a separate task
             {
                 ZipFile.ExtractToDirectory(localZipPath, extractPath, true);
             });
 
-            // Create a batch script to move the files and restart Aimmy
+            // Create a batch script to move the files and restart Whales
             string? mainAppPath = Environment.ProcessPath;
 
             string? mainAppDir = Path.GetDirectoryName(mainAppPath) ?? throw new InvalidOperationException("Failed to get the directory name from the main module file path.");

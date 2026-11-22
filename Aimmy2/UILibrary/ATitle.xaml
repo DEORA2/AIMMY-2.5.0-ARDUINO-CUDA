@@ -2,45 +2,52 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:local="clr-namespace:Aimmy2.UILibrary"
-             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-             xmlns:Ant="clr-namespace:AntWpf.Controls;assembly=AntWpf"
-             xmlns:theme="clr-namespace:Aimmy2.Theme"
-             x:Class="Aimmy2.UILibrary.ATitle"
-             theme:ThemeBehavior.AutoRegister="True"
+             xmlns:local="clr-namespace:Whales2.UILibrary"
+             x:Class="Whales2.UILibrary.ATitle"
              mc:Ignorable="d"
              d:DesignWidth="282.5"
-             d:DesignHeight="40">
-    <Grid>
-        <Border Height="40"
-                Background="#3F3C3C3C"
-                CornerRadius="5,5,0,0"
-                BorderThickness="1,1,1,0"
-                BorderBrush="#3FFFFFFF">
-            <Grid>
-                <Label x:Name="LabelTitle"
-                       Padding="10,10,10,10"
-                       FontFamily="{StaticResource Atkinson Hyperlegible}"
-                       Content="Title"
-                       Foreground="#DDFFFFFF"
-                       VerticalContentAlignment="Center"
-                       FontSize="15"
-                       FontWeight="Bold"
-                       Margin="0,0,30,0" />
-                <Ant:Button x:Name="Minimize"
-                        Tag="Theme:EffectBrush"
-                        Content="&#xE921;"
-                        HorizontalAlignment="Right"
-                        BorderThickness="0"
-                        Foreground="#ffffff"
-                        BorderBrush="#00D9D9D9"
-                        Background="Transparent"
-                        FontFamily="Segoe MDL2 Assets"
-                        Padding="10,10,10,10"
-                        materialDesign:ButtonAssist.CornerRadius="5,0,0,5"
-                        FontSize="10"
-                        Visibility="Collapsed" Margin="0,4,3,3" />
-            </Grid>
-        </Border>
+             d:DesignHeight="44">
+    <!-- Section header: accent tick, condensed caps title, hairline rule, collapse button -->
+    <Grid Height="44" Margin="0,6,0,2">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <Rectangle Width="3"
+                   Height="16"
+                   Margin="8,0,0,0"
+                   Fill="{DynamicResource ThemeColor}"
+                   VerticalAlignment="Center">
+            <Rectangle.RenderTransform>
+                <SkewTransform AngleX="-14" />
+            </Rectangle.RenderTransform>
+        </Rectangle>
+
+        <Label x:Name="LabelTitle"
+               Grid.Column="1"
+               Padding="10,0,12,0"
+               FontFamily="{StaticResource UIFont}"
+               Content="Title"
+               Foreground="{DynamicResource ThemeColor}"
+               VerticalContentAlignment="Center"
+               FontSize="13"
+               FontWeight="SemiBold" />
+
+        <Rectangle Grid.Column="2"
+                   Height="1"
+                   Fill="{StaticResource UI.Line}"
+                   VerticalAlignment="Center" />
+
+        <Button x:Name="Minimize"
+                Grid.Column="3"
+                Style="{StaticResource UI.CaptionButton}"
+                Content="&#xE921;"
+                Width="30"
+                Height="26"
+                Margin="6,0,4,0"
+                Visibility="Collapsed" />
     </Grid>
 </UserControl>

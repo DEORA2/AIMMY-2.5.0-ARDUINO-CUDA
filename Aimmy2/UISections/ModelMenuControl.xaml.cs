@@ -1,4 +1,4 @@
-﻿using Aimmy2.UILibrary;
+﻿using Whales2.UILibrary;
 using Other;
 using System.Diagnostics;
 using System.IO;
@@ -7,7 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 using Visuality;
 
-namespace Aimmy2.Controls
+namespace Whales2.Controls
 {
     public partial class ModelMenuControl : UserControl
     {
@@ -100,8 +100,8 @@ namespace Aimmy2.Controls
                 // Load data in parallel
                 var tasks = new[]
                 {
-                    FileManager.RetrieveAndAddFiles("https://api.github.com/repos/Babyhamsta/Aimmy/contents/models", "bin\\models", availableModels),
-                    FileManager.RetrieveAndAddFiles("https://api.github.com/repos/Babyhamsta/Aimmy/contents/configs", "bin\\configs", availableConfigs)
+                    FileManager.RetrieveAndAddFiles("https://api.github.com/repos/Babyhamsta/Whales/contents/models", "bin\\models", availableModels),
+                    FileManager.RetrieveAndAddFiles("https://api.github.com/repos/Babyhamsta/Whales/contents/configs", "bin\\configs", availableConfigs)
                 };
 
                 await Task.WhenAll(tasks);

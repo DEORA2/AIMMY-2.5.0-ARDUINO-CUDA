@@ -1,5 +1,5 @@
 ﻿using AILogic;
-using Aimmy2.Class;
+using Whales2.Class;
 using Class;
 using InputLogic;
 using Microsoft.ML.OnnxRuntime;
@@ -16,7 +16,7 @@ using Visuality;
 using static AILogic.MathUtil;
 using static Other.LogManager;
 
-namespace Aimmy2.AILogic
+namespace Whales2.AILogic
 {
     internal class AIManager : IDisposable
     {
@@ -98,6 +98,35 @@ namespace Aimmy2.AILogic
         // Benchmarking
         private int iterationCount = 0;
         private long totalTime = 0;
+
+        // Status readouts for the UI (read-only, sampled by MainWindow)
+        public static string ExecutionProvider { get; private set; } = "N/A";
+        private int _fpsFrames;
+        private long _fpsWindowStart = Stopwatch.GetTimestamp();
+        private long _lastFrameTimestamp;
+        private double _fps;
+
+        /// <summary>True once the model session started and the inference loop is running.</summary>
+        public bool IsRunning => _isAiLoopRunning;
+
+        /// <summary>Inference frames per second over the last second; 0 when the loop is idle.</summary>
+        public double CurrentFps =>
+            Stopwatch.GetElapsedTime(Interlocked.Read(ref _lastFrameTimestamp)).TotalSeconds > 1.5 ? 0 : _fps;
+
+        private void CountFrame()
+        {
+            long now = Stopwatch.GetTimestamp();
+            Interlocked.Exchange(ref _lastFrameTimestamp, now);
+            _fpsFrames++;
+
+            double elapsed = Stopwatch.GetElapsedTime(_fpsWindowStart, now).TotalSeconds;
+            if (elapsed >= 1.0)
+            {
+                _fps = _fpsFrames / elapsed;
+                _fpsFrames = 0;
+                _fpsWindowStart = now;
+            }
+        }
 
         private int detectedX { get; set; }
         private int detectedY { get; set; }
@@ -259,51 +288,68 @@ namespace Aimmy2.AILogic
             }
         }
 
-        private Task LoadModelAsync(string modelPath)
+        private static string TryAppendBestProvider(SessionOptions sessionOptions, HashSet<string> available)
         {
-            SessionOptions sessionOptions = new SessionOptions();
-            bool cudaAvailable = false;
-            try
+            // DirectML first, CPU as last resort.
+            if (available.Contains("DmlExecutionProvider"))
             {
                 try
                 {
-                    sessionOptions.AppendExecutionProvider_CUDA();
-                    cudaAvailable = true;
-                    Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        new NoticeBar("USING CUDA", 2000).Show();
-                    });
-
+                    sessionOptions.AppendExecutionProvider_DML();
+                    ShowProviderNotice("USING DML");
+                    return "DML";
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // CUDA not available, try DML
-                    try
-                    {
-                        sessionOptions.AppendExecutionProvider_DML();
-                        Application.Current.Dispatcher.Invoke(() =>
-                        {
-                            new NoticeBar("USING DML", 2000).Show();
-                        });
-
-                    }   
-                    catch
-                    {
-                        sessionOptions.AppendExecutionProvider_CPU();
-                        Application.Current.Dispatcher.Invoke(() =>
-                        {
-                            new NoticeBar("USING CPU", 2000).Show();
-                        });
-
-                    }
+                    Log(LogLevel.Warning, $"DirectML EP failed, falling back to CPU: {ex.Message}");
                 }
+            }
 
+            sessionOptions.AppendExecutionProvider_CPU();
+            ShowProviderNotice("USING CPU");
+            return "CPU";
+        }
+
+        private static void ShowProviderNotice(string message)
+        {
+            try
+            {
+                Application.Current?.Dispatcher.BeginInvoke(() =>
+                {
+                    try { new NoticeBar(message, 2000).Show(); } catch { }
+                });
+            }
+            catch { }
+        }
+
+        private Task LoadModelAsync(string modelPath)
+        {
+            SessionOptions sessionOptions = new SessionOptions();
+            string provider;
+            ExecutionProvider = "N/A";
+
+            // Only providers the loaded native onnxruntime.dll actually exports.
+            // Trying to append an EP the build doesn't include throws
+            // EntryPointNotFoundException, so gate every try on this set.
+            var available = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                foreach (var ep in OrtEnv.Instance().GetAvailableProviders())
+                    available.Add(ep);
+            }
+            catch { /* empty set => we fall through to CPU */ }
+
+            try
+            {
+                provider = TryAppendBestProvider(sessionOptions, available);
                 _onnxModel = new InferenceSession(modelPath, sessionOptions);
+                ExecutionProvider = provider; // only report a provider once the session actually started
                 _outputNames = new List<string>(_onnxModel.OutputMetadata.Keys);
 
                 // Validate the onnx model output shape (ensure model is OnnxV8)
                 if (!ValidateOnnxShape())
                 {
+                    ExecutionProvider = "N/A";
                     _onnxModel?.Dispose();
                     return Task.CompletedTask;
                 }
@@ -382,8 +428,14 @@ namespace Aimmy2.AILogic
                     // For fixed models, auto-adjust image size if needed
                     ModelFixedSize = fixedInputSize;
 
-                    // List of supported sizes
-                    var supportedSizes = new[] { "640", "512", "416", "320", "256", "160" };
+                    // Supported sizes: every multiple of 32 from 160 to 1024 (YOLO stride).
+                    var supportedSizes = new[]
+                    {
+                        "1024", "992", "960", "928", "896", "864", "832", "800",
+                        "768", "736", "704", "672", "640", "608", "576", "544",
+                        "512", "480", "448", "416", "384", "352", "320", "288",
+                        "256", "224", "192", "160"
+                    };
                     var fixedSizeStr = fixedInputSize.ToString();
 
                     if (!supportedSizes.Contains(fixedSizeStr))
@@ -431,7 +483,7 @@ namespace Aimmy2.AILogic
                     if (!outputMetadata.Values.All(metadata => metadata.Dimensions.SequenceEqual(expectedShape)))
                     {
                         Log(LogLevel.Error,
-                            $"Output shape does not match the expected shape of {string.Join("x", expectedShape)}.\nThis model will not work with Aimmy, please use an YOLOv8 model converted to ONNXv8.",
+                            $"Output shape does not match the expected shape of {string.Join("x", expectedShape)}.\nThis model will not work with Whales, please use an YOLOv8 model converted to ONNXv8.",
                             true, 10000);
                         return false;
                     }
@@ -544,6 +596,8 @@ namespace Aimmy2.AILogic
                             {
                                 closestPrediction = await GetClosestPrediction();
                             }
+
+                            CountFrame();
 
                             if (closestPrediction == null)
                             {
@@ -675,24 +729,35 @@ namespace Aimmy2.AILogic
             }
         }
 
+        private static int _overlayUpdatePending;
+
         private static void DisableOverlay(DetectedPlayerWindow DetectedPlayerOverlay)
         {
             if (Dictionary.toggleState["Show Detected Player"] && Dictionary.DetectedPlayerOverlay != null)
             {
-                Application.Current.Dispatcher.Invoke(() =>
+                if (Interlocked.CompareExchange(ref _overlayUpdatePending, 1, 0) != 0) return;
+
+                Application.Current.Dispatcher.BeginInvoke(() =>
                 {
-                    if (Dictionary.toggleState["Show AI Confidence"])
+                    try
                     {
-                        DetectedPlayerOverlay!.DetectedPlayerConfidence.Opacity = 0;
-                    }
+                        if (Dictionary.toggleState["Show AI Confidence"])
+                        {
+                            DetectedPlayerOverlay!.DetectedPlayerConfidence.Opacity = 0;
+                        }
 
-                    if (Dictionary.toggleState["Show Tracers"])
+                        if (Dictionary.toggleState["Show Tracers"])
+                        {
+                            DetectedPlayerOverlay!.DetectedTracers.Opacity = 0;
+                        }
+
+                        DetectedPlayerOverlay!.DetectedPlayerFocus.Opacity = 0;
+                    }
+                    finally
                     {
-                        DetectedPlayerOverlay!.DetectedTracers.Opacity = 0;
+                        Interlocked.Exchange(ref _overlayUpdatePending, 0);
                     }
-
-                    DetectedPlayerOverlay!.DetectedPlayerFocus.Opacity = 0;
-                });
+                }, System.Windows.Threading.DispatcherPriority.Background);
             }
         }
 
@@ -709,8 +774,12 @@ namespace Aimmy2.AILogic
             var centerX = Convert.ToInt16(displayRelativeX / scalingFactorX) + (LastDetectionBox.Width / 2.0);
             var centerY = Convert.ToInt16(displayRelativeY / scalingFactorY);
 
-            Application.Current.Dispatcher.Invoke(() =>
+            if (Interlocked.CompareExchange(ref _overlayUpdatePending, 1, 0) != 0) return;
+
+            Application.Current.Dispatcher.BeginInvoke(() =>
             {
+                try
+                {
                 if (Dictionary.toggleState["Show AI Confidence"])
                 {
                     DetectedPlayerOverlay.DetectedPlayerConfidence.Opacity = 1;
@@ -777,7 +846,12 @@ namespace Aimmy2.AILogic
                     centerX - (LastDetectionBox.Width / 2.0), centerY, 0, 0);
                 DetectedPlayerOverlay.DetectedPlayerFocus.Width = LastDetectionBox.Width;
                 DetectedPlayerOverlay.DetectedPlayerFocus.Height = LastDetectionBox.Height;
-            });
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _overlayUpdatePending, 0);
+                }
+            }, System.Windows.Threading.DispatcherPriority.Background);
         }
 
         private void CalculateCoordinates(DetectedPlayerWindow DetectedPlayerOverlay, Prediction closestPrediction, float scaleX, float scaleY)

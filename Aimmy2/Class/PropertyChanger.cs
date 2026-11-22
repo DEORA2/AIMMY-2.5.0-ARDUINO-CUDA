@@ -1,4 +1,4 @@
-﻿namespace Aimmy2.Class
+﻿namespace Whales2.Class
 {
     public static class PropertyChanger
     {

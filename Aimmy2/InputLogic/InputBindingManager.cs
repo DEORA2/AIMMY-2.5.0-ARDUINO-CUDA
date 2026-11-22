@@ -9,6 +9,12 @@ namespace InputLogic
         private readonly Dictionary<string, string> bindings = [];
         private static readonly Dictionary<string, bool> isHolding = [];
         private string? settingBindingId = null;
+        private DateTime lastBindingCapturedAt = DateTime.MinValue;
+
+        // True while waiting for a key/button to bind, and briefly after one was captured,
+        // so UI shortcuts don't also react to the key that was just bound.
+        public bool IsCapturingBinding =>
+            settingBindingId != null || (DateTime.UtcNow - lastBindingCapturedAt).TotalMilliseconds < 400;
 
         public event Action<string, string>? OnBindingSet;
 
@@ -51,6 +57,7 @@ namespace InputLogic
                 bindings[settingBindingId] = e.KeyCode.ToString();
                 OnBindingSet?.Invoke(settingBindingId, e.KeyCode.ToString());
                 settingBindingId = null;
+                lastBindingCapturedAt = DateTime.UtcNow;
             }
             else
             {
@@ -72,6 +79,7 @@ namespace InputLogic
                 bindings[settingBindingId] = e.Button.ToString();
                 OnBindingSet?.Invoke(settingBindingId, e.Button.ToString());
                 settingBindingId = null;
+                lastBindingCapturedAt = DateTime.UtcNow;
             }
             else
             {

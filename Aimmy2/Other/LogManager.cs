@@ -1,4 +1,4 @@
-﻿using Aimmy2.Class;
+﻿using Whales2.Class;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;

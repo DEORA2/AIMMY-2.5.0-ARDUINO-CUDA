@@ -1,4 +1,4 @@
-﻿using Aimmy2.AILogic;
+﻿using Whales2.AILogic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.CompilerServices;

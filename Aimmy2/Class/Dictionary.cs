@@ -1,6 +1,6 @@
 using Visuality;
 
-namespace Aimmy2.Class
+namespace Whales2.Class
 {
     public static class Dictionary
     {
@@ -109,7 +109,7 @@ namespace Aimmy2.Class
         {
             { "FOV Color", "#FF8080FF"},
             { "Detected Player Color", "#FF00FFFF"},
-            { "Theme Color", "#FF722ED1" }
+            { "Theme Color", "#FFD7264B" }
         };
 
         public static Dictionary<string, dynamic> filelocationState = new()

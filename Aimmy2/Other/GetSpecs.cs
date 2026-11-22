@@ -2,7 +2,7 @@
 using Visuality;
 using Vortice.DXGI;
 
-namespace Aimmy2.Class
+namespace Whales2.Class
 {
     internal class GetSpecs
     {

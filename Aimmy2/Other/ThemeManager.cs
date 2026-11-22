@@ -8,7 +8,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
-namespace Aimmy2.Theme
+namespace Whales2.Theme
 {
     public static class ThemeManager
     {
@@ -16,7 +16,7 @@ namespace Aimmy2.Theme
         public static event EventHandler<Color> ThemeChanged;
 
         // Cached theme colors
-        private static Color _themeColor = Color.FromRgb(114, 46, 209);
+        private static Color _themeColor = Color.FromRgb(215, 38, 75);
         private static Color _themeColorDark;
         private static Color _themeColorLight;
         private static Color _themeGradientDark;

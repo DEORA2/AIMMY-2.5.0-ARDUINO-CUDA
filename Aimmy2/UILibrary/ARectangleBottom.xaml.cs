@@ -1,4 +1,4 @@
-﻿namespace Aimmy2.UILibrary
+﻿namespace Whales2.UILibrary
 {
     /// <summary>
     /// Interaction logic for ARectangleBottom.xaml

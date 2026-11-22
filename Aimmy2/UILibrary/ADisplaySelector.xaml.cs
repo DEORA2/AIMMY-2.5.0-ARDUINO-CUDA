@@ -1,12 +1,12 @@
-﻿using Aimmy2.Class;
-using Aimmy2.Theme;
+﻿using Whales2.Class;
+using Whales2.Theme;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
-namespace Aimmy2.UILibrary
+namespace Whales2.UILibrary
 {
     /// <summary>
     /// Interaction logic for ADisplaySelector.xaml
@@ -116,7 +116,7 @@ namespace Aimmy2.UILibrary
             var displayNumber = new TextBlock
             {
                 Text = (display.Index + 1).ToString(),
-                FontFamily = (FontFamily)FindResource("Atkinson Hyperlegible"),
+                FontFamily = (FontFamily)FindResource("UIFont"),
                 FontSize = 16,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(Color.FromArgb(221, 255, 255, 255)),
@@ -142,7 +142,7 @@ namespace Aimmy2.UILibrary
                 var primaryText = new TextBlock
                 {
                     Text = "Primary",
-                    FontFamily = (FontFamily)FindResource("Atkinson Hyperlegible"),
+                    FontFamily = (FontFamily)FindResource("UIFont"),
                     FontSize = 9,
                     Foreground = Brushes.White
                 };

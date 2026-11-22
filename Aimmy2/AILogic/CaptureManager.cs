@@ -1,4 +1,4 @@
-﻿using Aimmy2.Class;
+﻿using Whales2.Class;
 using Other;
 using SharpGen.Runtime;
 using System.Drawing;

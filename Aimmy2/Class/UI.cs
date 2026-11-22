@@ -1,4 +1,4 @@
-﻿using Aimmy2.UILibrary;
+﻿using Whales2.UILibrary;
 using System.Windows.Controls;
 using UILibrary;
 

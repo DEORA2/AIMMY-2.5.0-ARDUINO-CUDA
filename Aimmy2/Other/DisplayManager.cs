@@ -1,7 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 using System.Windows;
 
-namespace Aimmy2.Class
+namespace Whales2.Class
 {
     /// <summary>
     /// Central manager for handling multi-display functionality

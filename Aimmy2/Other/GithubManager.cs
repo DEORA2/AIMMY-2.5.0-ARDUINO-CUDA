@@ -2,7 +2,7 @@
 using System.Net.Http;
 using System.Text.Json;
 
-namespace Aimmy2.Other
+namespace Whales2.Other
 {
     public class GithubManager
     {
@@ -11,7 +11,7 @@ namespace Aimmy2.Other
         public GithubManager()
         {
             httpClient = new HttpClient();
-            httpClient.DefaultRequestHeaders.Add("User-Agent", "Aimmy2");
+            httpClient.DefaultRequestHeaders.Add("User-Agent", "Whales2");
             httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github.v3+json");
         }
 

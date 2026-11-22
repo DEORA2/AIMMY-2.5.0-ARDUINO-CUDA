@@ -1,11 +1,11 @@
-﻿<UserControl x:Class="Aimmy2.UILibrary.AColorWheel"
+﻿<UserControl x:Class="Whales2.UILibrary.AColorWheel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:Ant="clr-namespace:AntWpf.Controls;assembly=AntWpf"
-             xmlns:local="clr-namespace:Aimmy2.UILibrary"
+             xmlns:local="clr-namespace:Whales2.UILibrary"
              mc:Ignorable="d"
              d:DesignWidth="282.5"
              d:DesignHeight="310">
@@ -13,17 +13,17 @@
         <Grid x:Name="ViewContainer">
             <Border x:Name="ColorWheelView"
                 Height="310"
-                Background="#3F3C3C3C"
+                Background="#0EFFFFFF"
                 CornerRadius="0"
                 BorderThickness="1,0,1,0"
-                BorderBrush="#3FFFFFFF"
+                BorderBrush="#26FFFFFF"
                 Visibility="Visible"
                 IsHitTestVisible="True">
                 <Grid>
                     <!-- Title -->
                     <Label x:Name="ColorWheelTitle"
                        Padding="10,10,10,10"
-                       FontFamily="{StaticResource Atkinson Hyperlegible}"
+                       FontFamily="{StaticResource UIFont}"
                        Content="{Binding Title, RelativeSource={RelativeSource AncestorType=UserControl}}"
                        Foreground="#DDFFFFFF"
                        VerticalContentAlignment="Center"
@@ -118,12 +118,12 @@
                       VerticalAlignment="Bottom" 
                       Margin="0,0,0,50">
                         <Border Background="#1FFFFFFF"
-                            CornerRadius="3"
+                            CornerRadius="0"
                             Margin="10,5,10,5">
                             <Grid>
                                 <Label Content="Brightness"
                                    Foreground="#BBFFFFFF"
-                                   FontFamily="{StaticResource Atkinson Hyperlegible}"
+                                   FontFamily="{StaticResource UIFont}"
                                    FontSize="11"
                                    Padding="10,0,0,0"
                                    VerticalAlignment="Center"
@@ -133,7 +133,7 @@
                                 <Grid Margin="75,0,53,0">
                                     <!-- Gradient background track -->
                                     <Border Height="4" 
-                                        CornerRadius="2"
+                                        CornerRadius="0"
                                         VerticalAlignment="Center">
                                         <Border.Background>
                                             <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
@@ -193,12 +193,12 @@
                                     <TextBox x:Name="BrightnessValue" 
                                 Text="100"
                                 Foreground="#BBFFFFFF"
-                                FontFamily="{StaticResource Atkinson Hyperlegible}"
+                                FontFamily="{StaticResource UIFont}"
                                 FontSize="11"
                                          BorderBrush="{x:Null}" TextChanged="BrightnessValue_TextChanged" KeyDown="BrightnessValue_KeyDown"/>
                                     <Label Content="%"
                                    Foreground="#BBFFFFFF"
-                                   FontFamily="{StaticResource Atkinson Hyperlegible}"
+                                   FontFamily="{StaticResource UIFont}"
                                    FontSize="11"
                                        Padding="-1"
                                    VerticalAlignment="Center"
@@ -249,7 +249,7 @@
                                         VerticalAlignment="Center">
                                     <Label Content="Current Theme Color"
                                        Foreground="#BBFFFFFF"
-                                       FontFamily="{StaticResource Atkinson Hyperlegible}"
+                                       FontFamily="{StaticResource UIFont}"
                                        FontSize="11"
                                        Padding="0"
                                        Margin="0,0,0,2"/>
@@ -280,10 +280,10 @@
                     Visibility="{Binding ShowArrow, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BooleanToVisibilityConverter}}"
                     Click="ArrowButton_Click" Margin="0,-37,132,0"/>
             <Border x:Name="DragDropView" 
-                            Background="#3F3C3C3C"
+                            Background="#0EFFFFFF"
                             CornerRadius="0"
                             BorderThickness="1,0,1,0"
-                            BorderBrush="#3FFFFFFF"
+                            BorderBrush="#26FFFFFF"
                             Visibility="Collapsed"
                             IsHitTestVisible="False"
                             AllowDrop="True"
@@ -294,7 +294,7 @@
                     <!-- Title -->
                     <Label Content="Media Control"
                            Padding="10,10,10,10"
-                           FontFamily="{StaticResource Atkinson Hyperlegible}"
+                           FontFamily="{StaticResource UIFont}"
                            Foreground="#DDFFFFFF"
                            VerticalContentAlignment="Center"
                            FontSize="13"
@@ -317,7 +317,7 @@
                         </Grid>
                         <Border x:Name="DropZone"
                                 BorderThickness="2"
-                                CornerRadius="3"
+                                CornerRadius="0"
                                 Background="Transparent"
                                 AllowDrop="True">
                             <Border.BorderBrush>
@@ -336,7 +336,7 @@
                             <TextBlock x:Name="DropHintText"
                                        Text="Drag &amp; Drop Media Here"
                                        Foreground="#BBFFFFFF"
-                                       FontFamily="{StaticResource Atkinson Hyperlegible}"
+                                       FontFamily="{StaticResource UIFont}"
                                        FontSize="12"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"/>
@@ -345,12 +345,12 @@
                     <!-- Media Brightness Slider Section - Compact design matching other controls - Original came from the AColorWheel View.-->
                     <Grid Margin="0,231,0,32">
                         <Border Background="#1FFFFFFF"
-                                CornerRadius="3"
+                                CornerRadius="0"
                                 Margin="28,5,26,5">
                             <Grid>
                                 <Label Content="Brightness"
                                        Foreground="#BBFFFFFF"
-                                       FontFamily="{StaticResource Atkinson Hyperlegible}"
+                                       FontFamily="{StaticResource UIFont}"
                                        FontSize="11"
                                        Padding="10,0,0,0"
                                        VerticalAlignment="Center"
@@ -359,7 +359,7 @@
                                 <Grid Margin="75,0,53,0">
                                     <!-- Gradient background track -->
                                     <Border Height="4" 
-                                            CornerRadius="2"
+                                            CornerRadius="0"
                                             VerticalAlignment="Center">
                                         <Border.Background>
                                             <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
@@ -418,14 +418,14 @@
                                     <TextBox x:Name="BrightnessMediaValue" 
                                              Text="100"
                                              Foreground="#BBFFFFFF"
-                                             FontFamily="{StaticResource Atkinson Hyperlegible}"
+                                             FontFamily="{StaticResource UIFont}"
                                              FontSize="11"
                                              BorderBrush="{x:Null}" 
                                              TextChanged="BrightnessMediaValue_TextChanged" 
                                              KeyDown="BrightnessMediaValue_KeyDown"/>
                                     <Label Content="%"
                                            Foreground="#BBFFFFFF"
-                                           FontFamily="{StaticResource Atkinson Hyperlegible}"
+                                           FontFamily="{StaticResource UIFont}"
                                            FontSize="11"
                                            Padding="-1"
                                            VerticalAlignment="Center"
@@ -441,7 +441,7 @@
                                 Foreground="White"
                                 FontFamily="Segoe MDL2 Assets"
                                 Padding="15,0,15,0"
-                                materialDesign:ButtonAssist.CornerRadius="0,5,5,0"
+                                materialDesign:ButtonAssist.CornerRadius="0"
                                 BorderThickness="0,0,0,0"
                                 FontSize="15"
                                 VerticalAlignment="Top"

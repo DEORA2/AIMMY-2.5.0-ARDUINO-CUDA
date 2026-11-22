@@ -1,19 +1,21 @@
-﻿using Aimmy2.Theme;
-using AimmyWPF.Class;
+﻿using Whales2.Theme;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 
-namespace Aimmy2.UILibrary
+namespace Whales2.UILibrary
 {
     /// <summary>
     /// Interaction logic for AToggle.xaml
     /// </summary>
     public partial class AToggle : System.Windows.Controls.UserControl
     {
-        private static readonly Color DisableColor = Colors.White;
-        private static readonly TimeSpan AnimationDuration = TimeSpan.FromMilliseconds(500);
+        private static readonly Color OffBorderColor = Color.FromArgb(0x99, 0xA0, 0x94, 0x98);
+        private static readonly Duration AnimationDuration = new(TimeSpan.FromMilliseconds(160));
+        private static readonly IEasingFunction Ease = new CubicEase { EasingMode = EasingMode.EaseOut };
         private bool _isEnabled = false;
+
+        public bool IsOn => _isEnabled;
 
         public AToggle(string Text, string? tooltip = null)
         {
@@ -28,60 +30,49 @@ namespace Aimmy2.UILibrary
                 ToolTip = tt;
             }
 
-            // Subscribe to theme change events
             ThemeManager.ThemeChanged += OnThemeChanged;
-
-            // Update theme on load
-            this.Loaded += (s, e) => RefreshThemeColors();
-
-            // Cleanup on unload
-            this.Unloaded += (s, e) => ThemeManager.ThemeChanged -= OnThemeChanged;
+            Loaded += (s, e) => RefreshThemeColors();
+            Unloaded += (s, e) => ThemeManager.ThemeChanged -= OnThemeChanged;
         }
 
         private void OnThemeChanged(object sender, Color newThemeColor)
         {
-            Application.Current.Dispatcher.BeginInvoke(() => RefreshThemeColors());
+            Application.Current.Dispatcher.BeginInvoke(RefreshThemeColors);
         }
 
         private void RefreshThemeColors()
         {
-            // Update border
-            SwitchBorder.BorderBrush = new SolidColorBrush(ThemeManager.ThemeColor);
-
-            // Update toggle dot if enabled
-            if (_isEnabled)
-            {
-                SwitchMoving.Background = new SolidColorBrush(ThemeManager.ThemeColor);
-            }
-        }
-
-        private Color GetCurrentColor()
-        {
-            return SwitchMoving.Background is SolidColorBrush brush ? brush.Color : DisableColor;
+            SwitchMoving.Background = new SolidColorBrush(ThemeManager.ThemeColor);
+            AnimateBorder(_isEnabled ? ThemeManager.ThemeColor : OffBorderColor);
         }
 
         public void EnableSwitch()
         {
             _isEnabled = true;
-            Color themeColor = ThemeManager.ThemeColor;
-
-            SetColorAnimation(GetCurrentColor(), themeColor, AnimationDuration);
-            Animator.ObjectShift(AnimationDuration, SwitchMoving, SwitchMoving.Margin, new Thickness(0, 0, -1, 0));
+            AnimateCheck(1);
+            AnimateBorder(ThemeManager.ThemeColor);
         }
 
         public void DisableSwitch()
         {
             _isEnabled = false;
-
-            SetColorAnimation(GetCurrentColor(), DisableColor, AnimationDuration);
-            Animator.ObjectShift(AnimationDuration, SwitchMoving, SwitchMoving.Margin, new Thickness(0, 0, 16, 0));
+            AnimateCheck(0);
+            AnimateBorder(OffBorderColor);
         }
 
-        private void SetColorAnimation(Color fromColor, Color toColor, TimeSpan duration)
+        private void AnimateCheck(double to)
         {
-            ColorAnimation animation = new ColorAnimation(fromColor, toColor, duration);
-            SwitchMoving.Background = new SolidColorBrush(fromColor);
-            SwitchMoving.Background.BeginAnimation(SolidColorBrush.ColorProperty, animation);
+            var animation = new DoubleAnimation(to, AnimationDuration) { EasingFunction = Ease };
+            CheckScale.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
+            CheckScale.BeginAnimation(ScaleTransform.ScaleYProperty, animation);
+        }
+
+        private void AnimateBorder(Color to)
+        {
+            var from = SwitchBorder.BorderBrush is SolidColorBrush b ? b.Color : OffBorderColor;
+            var brush = new SolidColorBrush(from);
+            SwitchBorder.BorderBrush = brush;
+            brush.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, AnimationDuration));
         }
     }
 }

@@ -1,6 +1,6 @@
-﻿using Aimmy2.Class;
+﻿using Whales2.Class;
 
-namespace Aimmy2.UILibrary
+namespace Whales2.UILibrary
 {
     /// <summary>
     /// Interaction logic for ATitle.xaml
@@ -11,7 +11,7 @@ namespace Aimmy2.UILibrary
         {
             InitializeComponent();
 
-            LabelTitle.Content = Text;
+            LabelTitle.Content = Text.ToUpperInvariant();
 
             if (MinimizableMenu)
             {

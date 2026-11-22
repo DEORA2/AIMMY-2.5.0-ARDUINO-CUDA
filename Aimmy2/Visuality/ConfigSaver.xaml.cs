@@ -1,6 +1,6 @@
-﻿using Aimmy2.Class;
-using Aimmy2.Theme;
-using AimmyWPF.Class;
+﻿using Whales2.Class;
+using Whales2.Theme;
+using WhalesWPF.Class;
 using Class;
 using Other;
 using System.IO;

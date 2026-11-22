@@ -4,7 +4,7 @@ using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 
-namespace Aimmy2.UILibrary
+namespace Whales2.UILibrary
 {
     /// <summary>
     /// Interaction logic for ADownloadGateway.xaml
@@ -26,7 +26,7 @@ namespace Aimmy2.UILibrary
                 SetupHttpClientHeaders();
 
                 var encodedName = Uri.EscapeDataString(Name);
-                var downloadUri = new Uri($"https://github.com/BabyHamsta/Aimmy/raw/Aimmy-V2/{Path}/{encodedName}");
+                var downloadUri = new Uri($"https://github.com/BabyHamsta/Whales/raw/Whales-V2/{Path}/{encodedName}");
                 var downloadResult = await DownloadFileAsync(downloadUri, Path, Name);
 
                 if (downloadResult)
@@ -45,7 +45,7 @@ namespace Aimmy2.UILibrary
         {
             if (!httpClient.DefaultRequestHeaders.Contains("User-Agent"))
             {
-                httpClient.DefaultRequestHeaders.Add("User-Agent", "Aimmy2");
+                httpClient.DefaultRequestHeaders.Add("User-Agent", "Whales2");
             }
             if (!httpClient.DefaultRequestHeaders.Contains("Accept"))
             {

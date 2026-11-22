@@ -1,4 +1,4 @@
-﻿using Aimmy2.Theme;
+﻿using Whales2.Theme;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows;
@@ -10,7 +10,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Visuality;
 
-namespace Aimmy2.UILibrary
+namespace Whales2.UILibrary
 {
     public partial class AColorWheel : UserControl
     {

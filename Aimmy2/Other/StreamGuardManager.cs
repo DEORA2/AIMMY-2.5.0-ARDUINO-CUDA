@@ -4,7 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 
-namespace Aimmy2.Other
+namespace Whales2.Other
 {
     public static class StreamGuardManager
     {

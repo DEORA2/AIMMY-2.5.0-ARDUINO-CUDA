@@ -1,6 +1,6 @@
-﻿using Aimmy2.AILogic;
-using Aimmy2.Class;
-using Aimmy2.Other;
+﻿using Whales2.AILogic;
+using Whales2.Class;
+using Whales2.Other;
 using Class;
 using System.IO;
 using System.Windows;
@@ -127,6 +127,7 @@ namespace Other
             SaveDictionary.LoadJSON(Dictionary.sliderSettings, configPath);
             PropertyChanger.PostNewConfig(configPath, true);
 
+            Dictionary.lastLoadedConfig = selectedConfig;
             SelectedConfigNotifier.Content = "Loaded Config: " + selectedConfig;
         }
 

@@ -3,67 +3,52 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-             xmlns:Ant="clr-namespace:AntWpf.Controls;assembly=AntWpf"
              xmlns:local="clr-namespace:UILibrary"
-             xmlns:theme="clr-namespace:Aimmy2.Theme"
-             theme:ThemeBehavior.AutoRegister="True"
              mc:Ignorable="d"
              d:DesignWidth="282.5"
-             Height="80">
-
+             Height="76">
     <Grid>
-        <Border Height="80"
-                Background="#3F3C3C3C"
-                BorderThickness="1,0,1,0"
-                BorderBrush="#3FFFFFFF"
-                CornerRadius="0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="36" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-            <Grid>
-                <Label x:Name="DropdownTitle"
-                       Padding="10,10,10,10"
-                       FontFamily="{StaticResource Atkinson Hyperlegible}"
-                       Content="Prediction Method"
-                       Foreground="#DDFFFFFF"
-                       VerticalContentAlignment="Center"
-                       FontSize="13"
-                       VerticalAlignment="Top"
-                       Height="40" />
+        <Border Grid.RowSpan="2" Style="{StaticResource UI.RowHighlight}" />
+        <Rectangle Grid.RowSpan="2" Style="{StaticResource UI.RowAccent}" />
 
-                <TextBox x:Name="FileLocationTextbox"
-                         BorderBrush="#3FFFFFFF"
-                         Foreground="White"
-                         BorderThickness="1"
-                         TextWrapping="Wrap"
-                         Text=""
-                         Tag="No File Located"
-                         VerticalAlignment="Top"
-                         FontFamily="{StaticResource Atkinson Hyperlegible}"
-                         Padding="5,0,5,0"
-                         Style="{DynamicResource placeHolder}"
-                         Background="{x:Null}"
-                         Margin="10,40,45,0"
-                         Height="30"
-                         IsReadOnly="True"
-                         VerticalContentAlignment="Center" />
+        <Label x:Name="DropdownTitle"
+               Style="{StaticResource UI.RowLabel}"
+               Content="Prediction Method" />
 
-                <Ant:Button x:Name="OpenFileB"
-                            Tag="Theme:Background"
-                            BorderBrush="{x:Null}"
-                            EffectBrush="{x:Null}"
-                            Content="&#xE838;"
-                            HorizontalAlignment="Right"
-                            Height="30"
-                            Width="30"
-                            Margin="0,0,10,10"
-                            VerticalAlignment="Bottom"
-                            Padding="0,0,0,0"
-                            FontFamily="Segoe MDL2 Assets"
-                            BorderThickness="0,0,0,0"
-                            FontSize="13"
-                            Foreground="White"
-                            Click="OpenFileB_Click" />
-            </Grid>
-        </Border>
+        <Grid Grid.Row="1" Margin="22,0,16,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="FileLocationTextbox"
+                     BorderBrush="{StaticResource UI.Line}"
+                     Foreground="{StaticResource UI.TextDim}"
+                     BorderThickness="0,0,0,1"
+                     TextWrapping="NoWrap"
+                     Text=""
+                     Tag="No File Located"
+                     FontFamily="{StaticResource UIFont}"
+                     FontSize="13"
+                     Padding="2,0"
+                     Style="{DynamicResource placeHolder}"
+                     Background="{x:Null}"
+                     Height="26"
+                     IsReadOnly="True"
+                     VerticalContentAlignment="Center" />
+            <Button x:Name="OpenFileB"
+                    Grid.Column="1"
+                    Style="{StaticResource UI.SquareButton}"
+                    Content="&#xE838;"
+                    FontSize="12"
+                    Width="26"
+                    Height="26"
+                    Margin="8,0,0,0"
+                    Click="OpenFileB_Click" />
+        </Grid>
     </Grid>
 </UserControl>

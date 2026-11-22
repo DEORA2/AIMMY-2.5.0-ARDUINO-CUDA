@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace Aimmy2.Class
+namespace Whales2.Class
 {
     internal class ClickThroughOverlay
     {
