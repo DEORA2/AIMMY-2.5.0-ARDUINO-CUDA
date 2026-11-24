@@ -142,7 +142,7 @@ namespace Whales2
             UpdateCentralGlow(baseColor);
 
             // Keep white shadow for logo
-            if (FindName("WhalesLogo") is Path logo && logo.Effect is DropShadowEffect shadowEffect)
+            if (FindName("WhalesLogo") is FrameworkElement logo && logo.Effect is DropShadowEffect shadowEffect)
                 shadowEffect.Color = Colors.White;
         }
 

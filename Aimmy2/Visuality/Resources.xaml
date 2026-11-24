@@ -19,6 +19,11 @@
     <SolidColorBrush x:Key="UI.Hover" Color="#0DFFFFFF" />
     <SolidColorBrush x:Key="UI.KeyBg" Color="#1A2125" />
 
+    <!-- Whales logo: a whale tail inside a crosshair, on a 24x24 grid. Draw Logo.Lines as a
+         1.8-wide round-capped stroke and fill Logo.Tail, both in the same brush, inside a Viewbox. -->
+    <Geometry x:Key="Logo.Lines">M3.8,12 A8.2,8.2 0 1 1 20.2,12 A8.2,8.2 0 1 1 3.8,12 Z M12,1.8 L12,5 M12,19 L12,22.2 M1.8,12 L5,12 M19,12 L22.2,12</Geometry>
+    <Geometry x:Key="Logo.Tail">M12,17 C11.5,15 11.3,13.3 11.4,12 C10,12.2 8.2,11.6 7,9.9 C6.7,9.4 6.9,8.9 7.5,9.1 C8.9,9.5 10.3,9.7 11.5,9.1 C11.7,9 11.9,8.7 12,8.5 C12.1,8.7 12.3,9 12.5,9.1 C13.7,9.7 15.1,9.5 16.5,9.1 C17.1,8.9 17.3,9.4 17,9.9 C15.8,11.6 14,12.2 12.6,12 C12.7,13.3 12.5,15 12,17 Z</Geometry>
+
     <!-- Kept for older windows that still reference it -->
     <DrawingBrush x:Key="UI.Hatch"
                   TileMode="Tile"
