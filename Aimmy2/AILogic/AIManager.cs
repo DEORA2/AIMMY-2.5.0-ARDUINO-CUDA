@@ -79,6 +79,10 @@ namespace Whales2.AILogic
 
         private readonly RunOptions? _modeloptions;
         private InferenceSession? _onnxModel;
+        // Set when the model runs as a CUDA graph; it owns _onnxModel then
+        private CudaGraphRunner? _graphRunner;
+        private readonly object _inferenceLock = new();
+        private bool _disposed;
 
         private Thread? _aiLoopThread;
         private volatile bool _isAiLoopRunning;
@@ -87,19 +91,7 @@ namespace Whales2.AILogic
         private bool PlayerFound = false;
 
         // Sticky-Aim
-        private Prediction? _currentTarget = null;
-        private int _consecutiveFramesWithoutTarget = 0;
-        private const int MAX_FRAMES_WITHOUT_TARGET = 3; // Allow 3 frames of target loss
-
-        // Enhanced Sticky Aim State
-        private float _lastTargetVelocityX = 0f;
-        private float _lastTargetVelocityY = 0f;
-        private float _targetLockScore = 0f;           // Accumulated "stickiness" score
-        private const float LOCK_SCORE_DECAY = 0.85f;  // Decay per frame when target not matched
-        private const float LOCK_SCORE_GAIN = 15f;     // Gain per frame when target matched
-        private const float MAX_LOCK_SCORE = 100f;     // Maximum accumulated score
-        private const float REFERENCE_TARGET_SIZE = 10000f; // Reference area for "close" targets (approx 100x100)
-        private int _framesWithoutMatch = 0;           // Consecutive frames where current target wasn't found
+        private readonly StickyTargetTracker _stickyTracker = new();
 
         private double CenterXTranslated = 0;
         private double CenterYTranslated = 0;
@@ -265,7 +257,7 @@ namespace Whales2.AILogic
                 IntraOpNumThreads = 4
             };
 
-            // Attempt to load via DirectML (else fallback to CPU)
+            // Attempt to load via CUDA (else fallback to CPU)
             Task.Run(() => InitializeModel(sessionOptions, modelPath));
         }
 
@@ -281,7 +273,7 @@ namespace Whales2.AILogic
                 }
                 catch (Exception ex)
                 {
-                    Log(LogLevel.Error, $"Error starting the model via DirectML: {ex.Message}\n\nFalling back to CPU, performance may be poor.", true);
+                    Log(LogLevel.Error, $"Error starting the model via CUDA: {ex.Message}\n\nFalling back to CPU, performance may be poor.", true);
 
                     try
                     {
@@ -297,26 +289,68 @@ namespace Whales2.AILogic
             }
         }
 
+        private static readonly Dictionary<string, string> CudaOptions = new()
+        {
+            ["device_id"] = "0",
+            // Grow GPU memory only by what is asked for instead of doubling the pool
+            ["arena_extend_strategy"] = "kSameAsRequested",
+            // Channels-last layout: on an RTX 4080 Laptop this used ~170 MB less RAM and ran
+            // slightly faster than the default layout (measured with a 640 YOLO model)
+            ["prefer_nhwc"] = "1",
+            ["cudnn_conv_algo_search"] = "EXHAUSTIVE",
+            ["do_copy_in_default_stream"] = "1",
+        };
+
+        // The model runs on the GPU, so ONNX Runtime's CPU-side memory pools only hold on to RAM
+        private static SessionOptions CreateSessionOptions() => new()
+        {
+            EnableCpuMemArena = false,
+            EnableMemoryPattern = false,
+            GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
+            ExecutionMode = ExecutionMode.ORT_SEQUENTIAL,
+        };
+
         private static string TryAppendBestProvider(SessionOptions sessionOptions, HashSet<string> available)
         {
-            // DirectML first, CPU as last resort.
-            if (available.Contains("DmlExecutionProvider"))
+            // CUDA first (needs the NVIDIA CUDA 12 + cuDNN 9 runtime on PATH), CPU as last resort.
+            if (available.Contains("CUDAExecutionProvider"))
             {
                 try
                 {
-                    sessionOptions.AppendExecutionProvider_DML();
-                    ShowProviderNotice("USING DML");
-                    return "DML";
+                    using var cudaOptions = new OrtCUDAProviderOptions();
+                    cudaOptions.UpdateOptions(CudaOptions);
+                    sessionOptions.AppendExecutionProvider_CUDA(cudaOptions);
+                    return "CUDA";
                 }
                 catch (Exception ex)
                 {
-                    Log(LogLevel.Warning, $"DirectML EP failed, falling back to CPU: {ex.Message}");
+                    Log(LogLevel.Warning, $"CUDA failed, falling back to CPU (is the CUDA 12 / cuDNN 9 runtime installed?): {ex.Message}", true, 6000);
                 }
             }
 
             sessionOptions.AppendExecutionProvider_CPU();
-            ShowProviderNotice("USING CPU");
             return "CPU";
+        }
+
+        /// <summary>
+        /// Swaps the CUDA session for a CUDA graph runner when the model allows it (all layers on CUDA,
+        /// float input/output). The normal session stays in use otherwise.
+        /// </summary>
+        private void TryEnableCudaGraph(string modelPath)
+        {
+            var runner = CudaGraphRunner.TryCreate(modelPath, IMAGE_SIZE, CudaOptions, CreateSessionOptions, out var reason);
+            if (runner == null)
+            {
+                Log(LogLevel.Info, $"CUDA graphs not used for this model, running normal CUDA: {reason}");
+                ShowProviderNotice("USING CUDA");
+                return;
+            }
+
+            _onnxModel?.Dispose();
+            _onnxModel = runner.Session;
+            _graphRunner = runner;
+            Log(LogLevel.Info, $"CUDA graphs on ({IMAGE_SIZE}x{IMAGE_SIZE})");
+            ShowProviderNotice("USING CUDA GRAPHS");
         }
 
         private static void ShowProviderNotice(string message)
@@ -333,7 +367,7 @@ namespace Whales2.AILogic
 
         private Task LoadModelAsync(string modelPath)
         {
-            SessionOptions sessionOptions = new SessionOptions();
+            using SessionOptions sessionOptions = CreateSessionOptions();
             string provider;
             ExecutionProvider = "N/A";
 
@@ -361,6 +395,11 @@ namespace Whales2.AILogic
                     _onnxModel?.Dispose();
                     return Task.CompletedTask;
                 }
+
+                if (provider == "CUDA")
+                    TryEnableCudaGraph(modelPath);
+                else
+                    ShowProviderNotice("USING CPU");
 
                 // Pre-allocate bitmap buffer
                 _bitmapBuffer = new byte[3 * IMAGE_SIZE * IMAGE_SIZE];
@@ -491,10 +530,7 @@ namespace Whales2.AILogic
                             {
                                 // Find the MainWindow and update the dropdown
                                 var mainWindow = Application.Current.Windows.OfType<MainWindow>().FirstOrDefault();
-                                if (mainWindow?.SettingsMenuControlInstance != null)
-                                {
-                                    mainWindow.SettingsMenuControlInstance.UpdateImageSizeDropdown(fixedSizeStr);
-                                }
+                                mainWindow?.UpdateImageSizeDropdown(fixedSizeStr);
                             }
                             catch { }
                         });
@@ -736,9 +772,13 @@ namespace Whales2.AILogic
                                 continue;
                             }
 
-                            using (Benchmark("AutoTrigger"))
+                            // Don't auto-fire at a sticky-aim stand-in for a target that isn't visible
+                            if (!closestPrediction.IsPredicted)
                             {
-                                await AutoTrigger();
+                                using (Benchmark("AutoTrigger"))
+                                {
+                                    await AutoTrigger();
+                                }
                             }
 
                             using (Benchmark("CalculateCoordinates"))
@@ -746,9 +786,15 @@ namespace Whales2.AILogic
                                 CalculateCoordinates(DetectedPlayerOverlay, closestPrediction, _scaleX, _scaleY);
                             }
 
-                            using (Benchmark("HandleAim"))
+                            // Never steer towards a guessed position: the guess can't account for how far the
+                            // camera has already turned, so aiming at it pushes the crosshair past the target.
+                            // Sticky aim only keeps the lock through the gap; aiming resumes when it's seen again.
+                            if (!closestPrediction.IsPredicted)
                             {
-                                HandleAim(closestPrediction);
+                                using (Benchmark("HandleAim"))
+                                {
+                                    HandleAim(closestPrediction);
+                                }
                             }
 
                             totalTime += stopwatch.ElapsedMilliseconds;
@@ -1138,37 +1184,59 @@ namespace Whales2.AILogic
 
             try
             {
-                float[] inputArray;
-                using (Benchmark("BitmapToFloatArray"))
+                // Dispose() takes this lock too, so the model can't be freed mid-inference
+                lock (_inferenceLock)
                 {
-                    if (_reusableInputArray == null || _reusableInputArray.Length != 3 * IMAGE_SIZE * IMAGE_SIZE)
+                    if (_disposed) return null;
+                    var graph = _graphRunner;
+                    if (graph != null)
                     {
-                        _reusableInputArray = new float[3 * IMAGE_SIZE * IMAGE_SIZE];
+                        // CUDA graph: write the frame straight into the page-locked input buffer, then replay
+                        using (Benchmark("BitmapToFloatArray"))
+                        {
+                            BitmapToFloatArrayInPlace(frame, graph.Input, IMAGE_SIZE);
+                        }
+                        using (Benchmark("ModelInference"))
+                        {
+                            graph.Run();
+                            outputTensor = graph.Output;
+                        }
                     }
-                    inputArray = _reusableInputArray;
+                    else
+                    {
+                        float[] inputArray;
+                        using (Benchmark("BitmapToFloatArray"))
+                        {
+                            if (_reusableInputArray == null || _reusableInputArray.Length != 3 * IMAGE_SIZE * IMAGE_SIZE)
+                            {
+                                _reusableInputArray = new float[3 * IMAGE_SIZE * IMAGE_SIZE];
+                            }
+                            inputArray = _reusableInputArray;
 
-                    // Fill the reusable array
-                    BitmapToFloatArrayInPlace(frame, inputArray, IMAGE_SIZE);
-                }
+                            // Fill the reusable array
+                            BitmapToFloatArrayInPlace(frame, inputArray, IMAGE_SIZE);
+                        }
 
-                // Reuse tensor and inputs - recreate if size changed
-                /// this needs to be revised !!!!! - taylor
-                if (_reusableTensor == null || _reusableTensor.Dimensions[2] != IMAGE_SIZE)
-                {
-                    _reusableTensor = new DenseTensor<float>(inputArray, new int[] { 1, 3, IMAGE_SIZE, IMAGE_SIZE });
-                    _reusableInputs = new List<NamedOnnxValue> { NamedOnnxValue.CreateFromTensor(_inputName, _reusableTensor) };
-                }
-                else
-                {
-                    // Directly copy into existing DenseTensor buffer
-                    inputArray.AsSpan().CopyTo(_reusableTensor.Buffer.Span);
-                }
+                        // Reuse tensor and inputs - recreate if size changed
+                        /// this needs to be revised !!!!! - taylor
+                        if (_reusableTensor == null || _reusableTensor.Dimensions[2] != IMAGE_SIZE)
+                        {
+                            _reusableTensor = new DenseTensor<float>(inputArray, new int[] { 1, 3, IMAGE_SIZE, IMAGE_SIZE });
+                            _reusableInputs = new List<NamedOnnxValue> { NamedOnnxValue.CreateFromTensor(_inputName, _reusableTensor) };
+                        }
+                        else
+                        {
+                            // Directly copy into existing DenseTensor buffer
+                            inputArray.AsSpan().CopyTo(_reusableTensor.Buffer.Span);
+                        }
 
-                if (_onnxModel == null) return null;
-                using (Benchmark("ModelInference"))
-                {
-                    results = _onnxModel.Run(_reusableInputs, _outputNames, _modeloptions);
-                    outputTensor = results[0].AsTensor<float>();
+                        if (_onnxModel == null) return null;
+                        using (Benchmark("ModelInference"))
+                        {
+                            results = _onnxModel.Run(_reusableInputs, _outputNames, _modeloptions);
+                            outputTensor = results[0].AsTensor<float>();
+                        }
+                    }
                 }
 
                 if (outputTensor == null)
@@ -1211,7 +1279,10 @@ namespace Whales2.AILogic
                 if (KDPredictions.Count == 0)
                 {
                     SaveFrame(frame);
-                    return null;
+                    // Sticky aim keeps following a target that just dropped out for a moment
+                    Prediction? held = HandleStickyAim(null, KDPredictions, detectionBox);
+                    if (held != null) UpdateDetectionBox(held, detectionBox);
+                    return held;
                 }
 
                 //kdtree was replaced with linear search
@@ -1234,11 +1305,11 @@ namespace Whales2.AILogic
                     }
                 }
 
-                Prediction? finalTarget = HandleStickyAim(bestCandidate, KDPredictions);
+                Prediction? finalTarget = HandleStickyAim(bestCandidate, KDPredictions, detectionBox);
                 if (finalTarget != null)
                 {
                     UpdateDetectionBox(finalTarget, detectionBox);
-                    SaveFrame(frame, finalTarget);
+                    SaveFrame(frame, finalTarget.IsPredicted ? null : finalTarget); // never auto-label a guessed box
                     return finalTarget;
                 }
 
@@ -1252,187 +1323,18 @@ namespace Whales2.AILogic
             }
         }
 
-        private Prediction? HandleStickyAim(Prediction? bestCandidate, List<Prediction> KDPredictions)
+        private Prediction? HandleStickyAim(Prediction? bestCandidate, List<Prediction> detections, Rectangle detectionBox)
         {
             if (!Dictionary.toggleState["Sticky Aim"])
             {
-                _currentTarget = bestCandidate;
-                ResetStickyAimState();
+                _stickyTracker.Reset();
                 return bestCandidate;
             }
 
-            // No detections available
-            if (bestCandidate == null || KDPredictions == null || KDPredictions.Count == 0)
-            {
-                return HandleNoDetections();
-            }
-
-            _consecutiveFramesWithoutTarget = 0;
-
-            // Screen center (where user is aiming)
-            float screenCenterX = IMAGE_SIZE / 2f;
-            float screenCenterY = IMAGE_SIZE / 2f;
-
-            // STEP 1: Find what the user is aiming at (closest to crosshair)
-            Prediction? aimTarget = null;
-            float nearestToCrosshairDistSq = float.MaxValue;
-
-            foreach (var candidate in KDPredictions)
-            {
-                float distSq = GetDistanceSq(candidate.ScreenCenterX, candidate.ScreenCenterY, screenCenterX, screenCenterY);
-                if (distSq < nearestToCrosshairDistSq)
-                {
-                    nearestToCrosshairDistSq = distSq;
-                    aimTarget = candidate;
-                }
-            }
-
-            if (aimTarget == null)
-            {
-                return HandleNoDetections();
-            }
-
-            // No current target - acquire what user is aiming at
-            if (_currentTarget == null)
-            {
-                return AcquireNewTarget(aimTarget);
-            }
-
-            // STEP 2: Is the aim target the SAME as our current target?
-            float lastX = _currentTarget.ScreenCenterX;
-            float lastY = _currentTarget.ScreenCenterY;
-            float targetArea = _currentTarget.Rectangle.Width * _currentTarget.Rectangle.Height;
-            float targetSize = MathF.Sqrt(targetArea);
-            float sizeFactor = GetSizeFactor(targetArea);
-
-            // Distance from aim target to our current target's last position
-            float aimToCurrentDistSq = GetDistanceSq(aimTarget.ScreenCenterX, aimTarget.ScreenCenterY, lastX, lastY);
-
-            // Tracking radius based on target size - larger targets have larger radius
-            float trackingRadius = targetSize * 3f;
-            float trackingRadiusSq = trackingRadius * trackingRadius;
-
-            // Check size similarity
-            float aimTargetArea = aimTarget.Rectangle.Width * aimTarget.Rectangle.Height;
-            float sizeRatio = MathF.Min(targetArea, aimTargetArea) / MathF.Max(targetArea, aimTargetArea);
-
-            // Is the aim target the same as our current target?
-            // Same if: close to last position AND similar size
-            bool isSameTarget = (aimToCurrentDistSq < trackingRadiusSq) && (sizeRatio > 0.5f);
-
-            if (isSameTarget)
-            {
-                // User is still aiming at current target - update and continue
-                _framesWithoutMatch = 0;
-                UpdateVelocity(aimTarget, sizeFactor);
-                _targetLockScore = Math.Min(MAX_LOCK_SCORE, _targetLockScore + LOCK_SCORE_GAIN);
-                _currentTarget = aimTarget;
-                return aimTarget;
-            }
-
-            // STEP 3: User is aiming at a DIFFERENT target
-            // But we need hysteresis - don't switch on single-frame jitter
-            _framesWithoutMatch++;
-
-            // Quick switch if aim target is very close to crosshair (user clearly aiming at it)
-            float stickyThreshold = (float)Dictionary.sliderSettings["Sticky Aim Threshold"];
-            bool aimTargetVeryCentered = nearestToCrosshairDistSq < (stickyThreshold * stickyThreshold * 0.25f);
-
-            if (aimTargetVeryCentered || _framesWithoutMatch >= 3)
-            {
-                // User has clearly moved to new target - switch
-                return AcquireNewTarget(aimTarget);
-            }
-
-            // Not ready to switch yet - return null to avoid flicking
-            // (Don't return old target position, don't return new target position)
-            return null;
+            float switchRadius = (float)Dictionary.sliderSettings["Sticky Aim Threshold"];
+            return _stickyTracker.Update(detections, detectionBox.Left, detectionBox.Top, IMAGE_SIZE,
+                switchRadius, Stopwatch.GetTimestamp());
         }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static float GetDistanceSq(float x1, float y1, float x2, float y2)
-        {
-            float dx = x1 - x2;
-            float dy = y1 - y2;
-            return dx * dx + dy * dy;
-        }
-
-        /// <summary>
-        /// Returns a scaling factor based on target size. Smaller targets (further away) get higher factors
-        /// to make thresholds more forgiving and filtering more aggressive.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private float GetSizeFactor(float targetArea)
-        {
-            // sizeFactor: 1.0 for large/close targets, up to 3.0 for small/distant targets
-            // This makes distant targets more "sticky" to compensate for detection jitter
-            float ratio = REFERENCE_TARGET_SIZE / Math.Max(targetArea, 100f);
-            return Math.Clamp(ratio, 1.0f, 3.0f);
-        }
-
-        private Prediction? HandleNoDetections()
-        {
-            if (_currentTarget != null && ++_consecutiveFramesWithoutTarget <= MAX_FRAMES_WITHOUT_TARGET)
-            {
-                // Decay lock score during grace period
-                _targetLockScore *= LOCK_SCORE_DECAY;
-
-                // Return predicted position instead of stale position
-                var predicted = new Prediction
-                {
-                    ScreenCenterX = _currentTarget.ScreenCenterX + _lastTargetVelocityX * _consecutiveFramesWithoutTarget,
-                    ScreenCenterY = _currentTarget.ScreenCenterY + _lastTargetVelocityY * _consecutiveFramesWithoutTarget,
-                    Rectangle = _currentTarget.Rectangle,
-                    Confidence = _currentTarget.Confidence * (1f - _consecutiveFramesWithoutTarget * 0.2f),
-                    ClassId = _currentTarget.ClassId,
-                    ClassName = _currentTarget.ClassName,
-                    CenterXTranslated = _currentTarget.CenterXTranslated,
-                    CenterYTranslated = _currentTarget.CenterYTranslated
-                };
-                return predicted;
-            }
-
-            ResetStickyAimState();
-            return null;
-        }
-
-        private Prediction AcquireNewTarget(Prediction target)
-        {
-            _lastTargetVelocityX = 0f;
-            _lastTargetVelocityY = 0f;
-            _targetLockScore = LOCK_SCORE_GAIN; // Start with some lock score
-            _framesWithoutMatch = 0;
-            _currentTarget = target;
-            return target;
-        }
-
-        private void UpdateVelocity(Prediction newTarget, float sizeFactor)
-        {
-            if (_currentTarget != null)
-            {
-                // EMA smoothing on velocity to reduce noise
-                // Use heavier smoothing for smaller/distant targets (more weight on old velocity)
-                // sizeFactor 1.0 -> 0.7/0.3, sizeFactor 3.0 -> 0.9/0.1
-                float smoothing = Math.Clamp(0.6f + (sizeFactor * 0.1f), 0.7f, 0.9f);
-                float newWeight = 1f - smoothing;
-
-                float newVelX = newTarget.ScreenCenterX - _currentTarget.ScreenCenterX;
-                float newVelY = newTarget.ScreenCenterY - _currentTarget.ScreenCenterY;
-                _lastTargetVelocityX = _lastTargetVelocityX * smoothing + newVelX * newWeight;
-                _lastTargetVelocityY = _lastTargetVelocityY * smoothing + newVelY * newWeight;
-            }
-        }
-
-        private void ResetStickyAimState()
-        {
-            _currentTarget = null;
-            _consecutiveFramesWithoutTarget = 0;
-            _framesWithoutMatch = 0;
-            _lastTargetVelocityX = 0f;
-            _lastTargetVelocityY = 0f;
-            _targetLockScore = 0f;
-        }
-
         private void UpdateDetectionBox(Prediction target, Rectangle detectionBox)
         {
             float translatedXMin = target.Rectangle.X + detectionBox.Left;
@@ -1661,7 +1563,20 @@ namespace Whales2.AILogic
             // Clean up other resources
             _reusableInputArray = null;
             _reusableInputs = null;
-            _onnxModel?.Dispose();
+            lock (_inferenceLock)
+            {
+                _disposed = true;
+                if (_graphRunner != null)
+                {
+                    _graphRunner.Dispose(); // also disposes its session (_onnxModel)
+                    _graphRunner = null;
+                }
+                else
+                {
+                    _onnxModel?.Dispose();
+                }
+                _onnxModel = null;
+            }
             _modeloptions?.Dispose();
             _bitmapBuffer = null;
         }
@@ -1676,5 +1591,7 @@ namespace Whales2.AILogic
         public float CenterYTranslated { get; set; }
         public float ScreenCenterX { get; set; }  // Absolute screen position
         public float ScreenCenterY { get; set; }
+        /// <summary>True when sticky aim filled in a briefly missing target from its predicted position.</summary>
+        public bool IsPredicted { get; set; }
     }
 }

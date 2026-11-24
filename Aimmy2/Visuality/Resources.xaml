@@ -1,15 +1,25 @@
 ﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!--#region Vanguard-style UI kit (condensed type, flat rows, accent cursor) -->
-    <FontFamily x:Key="UIFont">Bahnschrift SemiCondensed, Bahnschrift, Segoe UI</FontFamily>
+    <!--#region Sidebar UI kit (flat dark cards, pill switches, accent = ThemeColor) -->
+    <FontFamily x:Key="UIFont">Segoe UI Variable Text, Segoe UI</FontFamily>
+    <FontFamily x:Key="UIHeadFont">Segoe UI Variable Display, Segoe UI</FontFamily>
+    <FontFamily x:Key="UIMonoFont">Cascadia Mono, Consolas</FontFamily>
 
-    <SolidColorBrush x:Key="UI.Text" Color="#EDE6E8" />
-    <SolidColorBrush x:Key="UI.TextDim" Color="#8F8589" />
-    <SolidColorBrush x:Key="UI.Line" Color="#26FFFFFF" />
-    <SolidColorBrush x:Key="UI.Box" Color="#99A09498" />
+    <SolidColorBrush x:Key="UI.Text" Color="#E8EEF1" />
+    <SolidColorBrush x:Key="UI.TextSoft" Color="#C3CDD3" />
+    <SolidColorBrush x:Key="UI.TextDim" Color="#8D99A3" />
+    <SolidColorBrush x:Key="UI.NavText" Color="#9AA6AE" />
+    <SolidColorBrush x:Key="UI.Line" Color="#1E262B" />
+    <SolidColorBrush x:Key="UI.Box" Color="#2A343A" />
+    <SolidColorBrush x:Key="UI.Bg" Color="#0B0E10" />
+    <SolidColorBrush x:Key="UI.Panel" Color="#0F1316" />
+    <SolidColorBrush x:Key="UI.CardBg" Color="#12171A" />
+    <SolidColorBrush x:Key="UI.CardBorder" Color="#1E262B" />
+    <SolidColorBrush x:Key="UI.Hover" Color="#0DFFFFFF" />
+    <SolidColorBrush x:Key="UI.KeyBg" Color="#1A2125" />
 
-    <!-- Faint diagonal hatching used behind list panels -->
+    <!-- Kept for older windows that still reference it -->
     <DrawingBrush x:Key="UI.Hatch"
                   TileMode="Tile"
                   Viewport="0,0,14,14"
@@ -18,7 +28,7 @@
         <DrawingBrush.Drawing>
             <GeometryDrawing Geometry="M0,14 L14,0">
                 <GeometryDrawing.Pen>
-                    <Pen Brush="#09FFFFFF" Thickness="1" />
+                    <Pen Brush="#06FFFFFF" Thickness="1" />
                 </GeometryDrawing.Pen>
             </GeometryDrawing>
         </DrawingBrush.Drawing>
@@ -27,60 +37,50 @@
     <!-- Row label (left side of every option row) -->
     <Style x:Key="UI.RowLabel" TargetType="{x:Type Label}">
         <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
-        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="Medium" />
         <Setter Property="Foreground" Value="{StaticResource UI.Text}" />
-        <Setter Property="Padding" Value="22,0,10,0" />
+        <Setter Property="Padding" Value="14,0,10,0" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <!-- One-line explanation under a row label -->
+    <Style x:Key="UI.RowDesc" TargetType="{x:Type TextBlock}">
+        <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource UI.TextDim}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Margin" Value="14,2,10,0" />
+        <Setter Property="LineHeight" Value="17" />
     </Style>
 
     <!-- Row value (right side text: slider value, key name, ...) -->
     <Style x:Key="UI.RowValue" TargetType="{x:Type Label}">
         <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{StaticResource UI.TextDim}" />
         <Setter Property="Padding" Value="10,0,14,0" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="HorizontalContentAlignment" Value="Right" />
     </Style>
 
-    <!-- Row background that lights up when hovered or when it is the selected (cursor) row.
-         The owning UserControl sets Tag="selected" to keep the highlight after the mouse leaves. -->
+    <!-- Soft hover background on option rows -->
     <Style x:Key="UI.RowHighlight" TargetType="{x:Type Border}">
         <Setter Property="Opacity" Value="0" />
         <Setter Property="IsHitTestVisible" Value="False" />
-        <Setter Property="Background" Value="{DynamicResource ThemeColorTransparent}" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Background" Value="{StaticResource UI.Hover}" />
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="selected">
-                <Setter Property="Opacity" Value="1" />
-            </DataTrigger>
             <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="True">
                 <Setter Property="Opacity" Value="1" />
             </DataTrigger>
         </Style.Triggers>
     </Style>
 
-    <!-- Slanted accent bar on the left edge of the selected row -->
+    <!-- No longer drawn: rows highlight with a soft background instead -->
     <Style x:Key="UI.RowAccent" TargetType="{x:Type Rectangle}">
-        <Setter Property="Width" Value="4" />
-        <Setter Property="HorizontalAlignment" Value="Left" />
-        <Setter Property="Margin" Value="6,6,0,6" />
-        <Setter Property="IsHitTestVisible" Value="False" />
-        <Setter Property="Fill" Value="{DynamicResource ThemeColor}" />
-        <Setter Property="Opacity" Value="0" />
-        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
-        <Setter Property="RenderTransform">
-            <Setter.Value>
-                <SkewTransform AngleX="-14" />
-            </Setter.Value>
-        </Setter>
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="selected">
-                <Setter Property="Opacity" Value="1" />
-            </DataTrigger>
-            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="True">
-                <Setter Property="Opacity" Value="1" />
-            </DataTrigger>
-        </Style.Triggers>
+        <Setter Property="Visibility" Value="Collapsed" />
     </Style>
 
     <!-- Invisible full-row click catcher -->
@@ -97,20 +97,21 @@
         </Setter>
     </Style>
 
-    <!-- Small square icon button (slider -/+, browse, ...) -->
+    <!-- Small rounded icon button (slider -/+, browse, ...) -->
     <Style x:Key="UI.SquareButton" TargetType="{x:Type Button}">
-        <Setter Property="Foreground" Value="{StaticResource UI.Text}" />
-        <Setter Property="Background" Value="#14FFFFFF" />
-        <Setter Property="BorderBrush" Value="{StaticResource UI.Line}" />
+        <Setter Property="Foreground" Value="{StaticResource UI.TextSoft}" />
+        <Setter Property="Background" Value="{StaticResource UI.KeyBg}" />
+        <Setter Property="BorderBrush" Value="{StaticResource UI.Box}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
-        <Setter Property="FontSize" Value="9" />
+        <Setter Property="FontSize" Value="8" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type Button}">
                     <Border x:Name="bd"
+                            CornerRadius="6"
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}">
@@ -118,7 +119,6 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource ThemeColor}" />
                             <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource ThemeColor}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
@@ -130,30 +130,32 @@
         </Setter>
     </Style>
 
-    <!-- Header / tab-bar chip (like the LB / RB key caps) -->
+    <!-- Key cap (bound key names) -->
     <Style x:Key="UI.KeyCap" TargetType="{x:Type Border}">
-        <Setter Property="Background" Value="#C8D2CBCE" />
+        <Setter Property="Background" Value="{StaticResource UI.KeyBg}" />
+        <Setter Property="BorderBrush" Value="{StaticResource UI.Box}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="5" />
         <Setter Property="MinWidth" Value="26" />
-        <Setter Property="Height" Value="24" />
-        <Setter Property="Padding" Value="6,0" />
+        <Setter Property="Height" Value="22" />
+        <Setter Property="Padding" Value="7,0" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style x:Key="UI.KeyCapText" TargetType="{x:Type TextBlock}">
-        <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontFamily" Value="{StaticResource UIMonoFont}" />
+        <Setter Property="FontSize" Value="11" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="#1A1416" />
+        <Setter Property="Foreground" Value="{StaticResource UI.Text}" />
         <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
-    <!-- Top tab button -->
+    <!-- Kept for older controls -->
     <Style x:Key="UI.TabButton" TargetType="{x:Type Button}">
         <Setter Property="Foreground" Value="{StaticResource UI.TextDim}" />
         <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
-        <Setter Property="FontSize" Value="17" />
+        <Setter Property="FontSize" Value="15" />
         <Setter Property="Padding" Value="14,0" />
-        <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Template">
@@ -177,20 +179,203 @@
         <Setter Property="Foreground" Value="{StaticResource UI.TextDim}" />
         <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
         <Setter Property="FontSize" Value="10" />
-        <Setter Property="Width" Value="38" />
-        <Setter Property="Height" Value="30" />
+        <Setter Property="Width" Value="36" />
+        <Setter Property="Height" Value="32" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type Button}">
-                    <Border x:Name="bd" Background="Transparent">
+                    <Border x:Name="bd" Background="Transparent" CornerRadius="8">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource ThemeColor}" />
-                            <Setter Property="Foreground" Value="White" />
+                            <Setter TargetName="bd" Property="Background" Value="#1AFFFFFF" />
+                            <Setter Property="Foreground" Value="{StaticResource UI.Text}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Card container -->
+    <Style x:Key="UI.Card" TargetType="{x:Type Border}">
+        <Setter Property="Background" Value="{StaticResource UI.CardBg}" />
+        <Setter Property="BorderBrush" Value="{StaticResource UI.CardBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Margin" Value="0,0,0,16" />
+    </Style>
+    <Style x:Key="UI.CardTitle" TargetType="{x:Type TextBlock}">
+        <Setter Property="FontFamily" Value="{StaticResource UIHeadFont}" />
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource UI.Text}" />
+    </Style>
+    <Style x:Key="UI.CardSubtitle" TargetType="{x:Type TextBlock}">
+        <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="Foreground" Value="{StaticResource UI.TextDim}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Margin" Value="0,3,0,0" />
+    </Style>
+    <Style x:Key="UI.PageTitle" TargetType="{x:Type TextBlock}">
+        <Setter Property="FontFamily" Value="{StaticResource UIHeadFont}" />
+        <Setter Property="FontSize" Value="21" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource UI.Text}" />
+    </Style>
+    <Style x:Key="UI.Small" TargetType="{x:Type TextBlock}">
+        <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource UI.TextDim}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- Header status chip -->
+    <Style x:Key="UI.Chip" TargetType="{x:Type Border}">
+        <Setter Property="Background" Value="{StaticResource UI.CardBg}" />
+        <Setter Property="BorderBrush" Value="{StaticResource UI.CardBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Padding" Value="11,0" />
+        <Setter Property="Margin" Value="8,0,0,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style x:Key="UI.ChipLabel" TargetType="{x:Type TextBlock}">
+        <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Foreground" Value="{StaticResource UI.TextDim}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,0,7,0" />
+    </Style>
+    <Style x:Key="UI.ChipValue" TargetType="{x:Type TextBlock}">
+        <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource UI.Text}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <!-- Sidebar navigation item -->
+    <Style x:Key="UI.NavButton" TargetType="{x:Type RadioButton}">
+        <Setter Property="Foreground" Value="{StaticResource UI.NavText}" />
+        <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type RadioButton}">
+                    <Border x:Name="bd" Background="Transparent" CornerRadius="9" Padding="12,10">
+                        <ContentPresenter VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource UI.Hover}" />
+                            <Setter Property="Foreground" Value="{StaticResource UI.Text}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource ThemeColorTransparent}" />
+                            <Setter Property="Foreground" Value="{StaticResource UI.Text}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="UI.NavIcon" TargetType="{x:Type Path}">
+        <Setter Property="Width" Value="24" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="StrokeThickness" Value="2" />
+        <Setter Property="StrokeStartLineCap" Value="Round" />
+        <Setter Property="StrokeEndLineCap" Value="Round" />
+        <Setter Property="StrokeLineJoin" Value="Round" />
+        <Setter Property="Stretch" Value="None" />
+        <Setter Property="Margin" Value="0,0,12,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Stroke" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type RadioButton}}}" />
+        <Setter Property="LayoutTransform">
+            <Setter.Value>
+                <ScaleTransform ScaleX="0.75" ScaleY="0.75" />
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType={x:Type RadioButton}}}" Value="True">
+                <Setter Property="Stroke" Value="{DynamicResource ThemeColor}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Buttons -->
+    <Style x:Key="UI.PrimaryButton" TargetType="{x:Type Button}">
+        <Setter Property="Foreground" Value="#0B0E10" />
+        <Setter Property="Background" Value="{DynamicResource ThemeColor}" />
+        <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="14,0" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Opacity" Value="0.88" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="bd" Property="Opacity" Value="0.7" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="bd" Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="UI.GhostButton" TargetType="{x:Type Button}">
+        <Setter Property="Foreground" Value="{StaticResource UI.Text}" />
+        <Setter Property="Background" Value="{StaticResource UI.KeyBg}" />
+        <Setter Property="BorderBrush" Value="{StaticResource UI.Box}" />
+        <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Padding" Value="14,0" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border x:Name="bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource ThemeColor}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="bd" Property="Opacity" Value="0.75" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="bd" Property="Opacity" Value="0.4" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -199,7 +384,7 @@
     </Style>
     <!--#endregion-->
 
-    <!-- TabControl Style with white underlines -->
+    <!-- TabControl Style with accent underlines -->
     <Style x:Key="ModelsTabControl" TargetType="{x:Type TabControl}">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
@@ -231,19 +416,12 @@
                         </Border>
                     </Grid>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="mainBorder" Property="BorderBrush" Value="#AAFFFFFF"/>
-                        </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="mainBorder" Property="BorderBrush" Value="#55FFFFFF"/>
                         </Trigger>
-                        <MultiTrigger>
-                            <MultiTrigger.Conditions>
-                                <Condition Property="IsSelected" Value="True"/>
-                                <Condition Property="IsMouseOver" Value="True"/>
-                            </MultiTrigger.Conditions>
-                            <Setter TargetName="mainBorder" Property="BorderBrush" Value="#AAFFFFFF"/>
-                        </MultiTrigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="mainBorder" Property="BorderBrush" Value="{DynamicResource ThemeColor}"/>
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -253,8 +431,8 @@
     <!-- Modern Tooltip Style - Theme Integrated -->
     <Style x:Key="Tooltip" TargetType="ToolTip">
         <Setter Property="OverridesDefaultStyle" Value="True"/>
-        <Setter Property="Background" Value="#FF191919"/>
-        <Setter Property="Foreground" Value="#FFFFFFFF"/>
+        <Setter Property="Background" Value="#FF12171A"/>
+        <Setter Property="Foreground" Value="#FFE8EEF1"/>
         <Setter Property="FontSize" Value="12"/>
         <Setter Property="FontFamily" Value="Segoe UI"/>
         <Setter Property="HasDropShadow" Value="True"/>
@@ -265,30 +443,22 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ToolTip">
                     <Border Background="{TemplateBinding Background}"
-                            CornerRadius="6"
+                            CornerRadius="8"
                             BorderThickness="1"
-                            BorderBrush="#40FFFFFF">
+                            BorderBrush="#2A343A">
                         <Border.Effect>
                             <DropShadowEffect BlurRadius="16"
                                               ShadowDepth="4"
                                               Opacity="0.5"
                                               Color="Black"/>
                         </Border.Effect>
-                        <Grid>
-                            <!-- Theme accent on left side -->
-                            <Border CornerRadius="6,0,0,6"
-                                    HorizontalAlignment="Left"
-                                    Width="3"
-                                    Background="{DynamicResource ThemeColor}"/>
-                            <!-- Content -->
-                            <TextBlock Text="{TemplateBinding Content}"
-                                       Foreground="{TemplateBinding Foreground}"
-                                       FontSize="{TemplateBinding FontSize}"
-                                       FontFamily="{TemplateBinding FontFamily}"
-                                       TextWrapping="Wrap"
-                                       MaxWidth="280"
-                                       Margin="12,10,12,10"/>
-                        </Grid>
+                        <TextBlock Text="{TemplateBinding Content}"
+                                   Foreground="{TemplateBinding Foreground}"
+                                   FontSize="{TemplateBinding FontSize}"
+                                   FontFamily="{TemplateBinding FontFamily}"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="280"
+                                   Margin="12,9,12,9"/>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>

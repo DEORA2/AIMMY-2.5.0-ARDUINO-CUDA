@@ -3,36 +3,39 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:local="clr-namespace:Whales2.UILibrary"
              mc:Ignorable="d"
-             d:DesignWidth="282.5"
-             d:DesignHeight="46">
-    <Grid Height="46">
+             d:DesignWidth="380">
+    <Grid MinHeight="48">
         <Border Style="{StaticResource UI.RowHighlight}" />
         <Rectangle Style="{StaticResource UI.RowAccent}" />
 
-        <Label x:Name="ToggleTitle"
-               Style="{StaticResource UI.RowLabel}"
-               Content="Aim only when Trigger Button is held"
-               Margin="0,0,50,0" />
+        <StackPanel VerticalAlignment="Center" Margin="0,9,64,9">
+            <Label x:Name="ToggleTitle"
+                   Style="{StaticResource UI.RowLabel}"
+                   Content="Toggle" />
+            <TextBlock x:Name="RowDescription"
+                       Style="{StaticResource UI.RowDesc}"
+                       Visibility="Collapsed" />
+        </StackPanel>
 
-        <!-- Square checkbox: outlined when off, filled inner square when on -->
+        <!-- Pill switch: knob slides right and the track fills with the theme colour when on -->
         <Border x:Name="SwitchBorder"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Center"
-                Width="22"
+                Width="40"
                 Height="22"
-                Margin="0,0,16,0"
-                Background="#33000000"
-                BorderBrush="{StaticResource UI.Box}"
-                BorderThickness="2">
+                CornerRadius="11"
+                Margin="0,0,14,0"
+                Padding="3"
+                Background="#2A343A">
             <Border x:Name="SwitchMoving"
-                    Width="10"
-                    Height="10"
-                    Background="{DynamicResource ThemeColor}"
-                    RenderTransformOrigin="0.5,0.5">
+                    Width="16"
+                    Height="16"
+                    CornerRadius="8"
+                    HorizontalAlignment="Left"
+                    Background="#C3CDD3">
                 <Border.RenderTransform>
-                    <ScaleTransform x:Name="CheckScale" ScaleX="0" ScaleY="0" />
+                    <TranslateTransform x:Name="KnobOffset" />
                 </Border.RenderTransform>
             </Border>
         </Border>

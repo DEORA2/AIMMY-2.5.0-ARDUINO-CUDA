@@ -3,35 +3,36 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:local="clr-namespace:Whales2.UILibrary"
              mc:Ignorable="d"
-             d:DesignWidth="282.5"
-             d:DesignHeight="46">
-    <Grid Height="46">
+             d:DesignWidth="380">
+    <Grid MinHeight="48">
         <Border Style="{StaticResource UI.RowHighlight}" />
         <Rectangle Style="{StaticResource UI.RowAccent}" />
 
-        <Label x:Name="KeyChangerTitle"
-               Style="{StaticResource UI.RowLabel}"
-               Content="Change Aim Keybind"
-               Margin="0,0,96,0" />
+        <StackPanel VerticalAlignment="Center" Margin="0,9,120,9">
+            <Label x:Name="KeyChangerTitle"
+                   Style="{StaticResource UI.RowLabel}"
+                   Content="Keybind" />
+            <TextBlock x:Name="RowDescription"
+                       Style="{StaticResource UI.RowDesc}"
+                       Visibility="Collapsed" />
+        </StackPanel>
 
-        <!-- Key cap showing the bound key -->
+        <!-- Key cap showing the bound key; click the row to rebind -->
         <Border HorizontalAlignment="Right"
-                VerticalAlignment="Center"
-                Margin="0,0,16,0"
-                MinWidth="34"
-                Height="24"
-                Background="#C8D2CBCE">
+                Margin="0,0,14,0"
+                Style="{StaticResource UI.KeyCap}"
+                Height="26"
+                MinWidth="40">
             <Label x:Name="KeyNotifier"
-                   FontFamily="{StaticResource UIFont}"
+                   FontFamily="{StaticResource UIMonoFont}"
                    Content="Right"
                    FontSize="12"
                    FontWeight="SemiBold"
                    HorizontalContentAlignment="Center"
                    VerticalContentAlignment="Center"
-                   Padding="8,0"
-                   Foreground="#1A1416" />
+                   Padding="2,0"
+                   Foreground="{StaticResource UI.Text}" />
         </Border>
 
         <Button x:Name="Reader"

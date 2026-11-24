@@ -74,7 +74,9 @@ namespace Whales2.Class
             { "StreamGuard", false },
             //--
             { "X Axis Percentage Adjustment", false },
-            { "Y Axis Percentage Adjustment", false }
+            { "Y Axis Percentage Adjustment", false },
+            // New UI: shows the rarely-needed rows marked as advanced
+            { "Show Advanced Settings", false }
         };
 
         public static Dictionary<string, dynamic> minimizeState = new()
@@ -102,7 +104,8 @@ namespace Whales2.Class
             { "Tracer Position", "Bottom" },
             { "Movement Path", "Cubic Bezier" },
             { "Image Size", "640" },
-            { "Target Class", "Best Confidence" }
+            { "Target Class", "Best Confidence" },
+            { "FOV Style", "Circle" }
         };
 
         public static Dictionary<string, dynamic> colorState = new()

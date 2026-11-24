@@ -82,10 +82,10 @@ namespace AILogic
 
         // this new function reduces gc pressure as i stopped using array.copy
         // REFERENCE: https://www.codeproject.com/Articles/617613/Fast-Pixel-Operations-in-NET-With-and-Without-unsa
-        public static unsafe void BitmapToFloatArrayInPlace(Bitmap image, float[] result, int IMAGE_SIZE)
+        // Takes a span so it can also fill the CUDA graph runner's page-locked input buffer directly
+        public static unsafe void BitmapToFloatArrayInPlace(Bitmap image, Span<float> result, int IMAGE_SIZE)
         {
             if (image == null) throw new ArgumentNullException(nameof(image));
-            if (result == null) throw new ArgumentNullException(nameof(result));
 
             int width = IMAGE_SIZE;
             int height = IMAGE_SIZE;

@@ -3,40 +3,47 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:local="clr-namespace:UILibrary"
              mc:Ignorable="d"
-             d:DesignWidth="282.5"
-             Height="46">
-    <!-- Title on the left, current choice right-aligned like a value -->
-    <Grid>
+             d:DesignWidth="380">
+    <!-- Title and explanation on the left, current choice in a box on the right -->
+    <Grid MinHeight="48">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" MinWidth="110" />
+            <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
         <Border Grid.ColumnSpan="2" Style="{StaticResource UI.RowHighlight}" />
         <Rectangle Style="{StaticResource UI.RowAccent}" />
 
-        <Label x:Name="DropdownTitle"
-               Style="{StaticResource UI.RowLabel}"
-               Content="Prediction Method" />
+        <StackPanel VerticalAlignment="Center" Margin="0,9,0,9">
+            <Label x:Name="DropdownTitle"
+                   Style="{StaticResource UI.RowLabel}"
+                   Content="Dropdown" />
+            <TextBlock x:Name="RowDescription"
+                       Style="{StaticResource UI.RowDesc}"
+                       Visibility="Collapsed" />
+        </StackPanel>
 
-        <ComboBox x:Name="DropdownBox"
-                  Grid.Column="1"
-                  Height="30"
-                  Margin="8,0,14,0"
-                  MaxWidth="210"
-                  VerticalAlignment="Center"
-                  Foreground="{StaticResource UI.Text}"
-                  BorderBrush="{StaticResource UI.Line}"
-                  BorderThickness="0,0,0,1"
-                  Padding="6,0,4,0"
-                  Background="{x:Null}"
-                  HorizontalContentAlignment="Right"
-                  SelectedIndex="0"
-                  FontSize="14"
-                  FontFamily="{StaticResource UIFont}"
-                  SelectionChanged="DropdownBox_SelectionChanged">
-        </ComboBox>
+        <Border Grid.Column="1"
+                Margin="8,0,12,0"
+                VerticalAlignment="Center"
+                Background="#1A2125"
+                BorderBrush="#2A343A"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="8,0,4,0">
+            <ComboBox x:Name="DropdownBox"
+                      Height="32"
+                      MinWidth="140"
+                      MaxWidth="220"
+                      Foreground="{StaticResource UI.Text}"
+                      BorderThickness="0"
+                      Padding="2,0,2,0"
+                      Background="{x:Null}"
+                      SelectedIndex="0"
+                      FontSize="13"
+                      FontFamily="{StaticResource UIFont}"
+                      SelectionChanged="DropdownBox_SelectionChanged" />
+        </Border>
     </Grid>
 </UserControl>

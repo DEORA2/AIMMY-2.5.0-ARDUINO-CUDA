@@ -3,442 +3,283 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:controls="clr-namespace:Whales2.Controls"
         xmlns:theme="clr-namespace:Whales2.Theme"
         theme:ThemeBehavior.AutoRegister="True"
         mc:Ignorable="d"
         Title="WOIRBGOWIBGW"
-        Height="860"
-        MinHeight="600"
-        Width="1180"
-        MinWidth="1060"
+        Height="820"
+        MinHeight="640"
+        Width="1220"
+        MinWidth="1040"
         WindowStyle="None"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
         AllowsTransparency="True"
         Background="Transparent"
-        MouseLeftButtonDown="Window_MouseLeftButtonDown"
         PreviewMouseDown="Window_PreviewMouseDown"
         PreviewKeyDown="Window_PreviewKeyDown"
         Closing="Window_Closing"
         Loaded="Window_Loaded">
     <Window.Resources>
-        <!-- Theme colors that can be updated dynamically -->
+        <!-- Theme colors (ThemeManager replaces these when the theme colour changes) -->
         <SolidColorBrush x:Key="ThemeColor" Color="#FFD7264B"/>
         <SolidColorBrush x:Key="ThemeColorDark" Color="#FFA11C38"/>
         <SolidColorBrush x:Key="ThemeColorLight" Color="#FFE2526F"/>
         <SolidColorBrush x:Key="ThemeGradientDark" Color="#FF400B16"/>
-
-        <!-- Additional theme variations -->
         <SolidColorBrush x:Key="ThemeColorTransparent" Color="#33D7264B"/>
         <SolidColorBrush x:Key="ThemeColorSemiTransparent" Color="#66D7264B"/>
-
-        <Style x:Key="CornerBracket" TargetType="{x:Type Path}">
-            <Setter Property="Stroke" Value="{DynamicResource ThemeColor}" />
-            <Setter Property="StrokeThickness" Value="3" />
-            <Setter Property="Width" Value="30" />
-            <Setter Property="Height" Value="30" />
-            <Setter Property="Stretch" Value="None" />
-            <Setter Property="IsHitTestVisible" Value="False" />
-            <Setter Property="Data" Value="M1.5,30 L1.5,1.5 L30,1.5" />
-        </Style>
-
-        <Style x:Key="StatusChipBox" TargetType="{x:Type Border}">
-            <Setter Property="Background" Value="#1EFFFFFF" />
-            <Setter Property="Height" Value="30" />
-            <Setter Property="Padding" Value="12,0" />
-            <Setter Property="Margin" Value="0,0,8,0" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-        <Style x:Key="StatusChipLabel" TargetType="{x:Type TextBlock}">
-            <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="Foreground" Value="{StaticResource UI.TextDim}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Margin" Value="0,1,8,0" />
-        </Style>
-        <Style x:Key="StatusChipValue" TargetType="{x:Type TextBlock}">
-            <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{StaticResource UI.Text}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-        </Style>
-
-        <Style x:Key="FooterHint" TargetType="{x:Type TextBlock}">
-            <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Foreground" Value="{StaticResource UI.TextDim}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Margin" Value="8,0,22,0" />
-        </Style>
     </Window.Resources>
     <WindowChrome.WindowChrome>
-        <WindowChrome ResizeBorderThickness="4"
+        <WindowChrome ResizeBorderThickness="6"
                       CaptionHeight="0" />
     </WindowChrome.WindowChrome>
 
     <Grid>
-        <Border x:Name="MainBorder"
-                Margin="12"
-                BorderBrush="#1AFFFFFF"
-                BorderThickness="1"
-                MouseMove="Main_Background_Gradient">
-            <Border.Background>
-                <LinearGradientBrush EndPoint="0.5,1"
-                                     StartPoint="0,0">
-                    <LinearGradientBrush.RelativeTransform>
-                        <TransformGroup>
-                            <ScaleTransform CenterY="0.5"
-                                            CenterX="0.5" />
-                            <SkewTransform CenterX="0.5"
-                                           CenterY="0.5" />
-                            <RotateTransform x:Name="RotaryGradient"
-                                             Angle="0"
-                                             CenterX="0.5"
-                                             CenterY="0.5" />
-                            <TranslateTransform />
-                        </TransformGroup>
-                    </LinearGradientBrush.RelativeTransform>
-                    <GradientStop Color="#FF0B090B"
-                                  Offset="0" />
-                    <GradientStop Color="#FF130F12"
-                                  Offset="0.55" />
-                    <GradientStop x:Name="GradientThemeStop"
-                                  Color="#FF400B16"
-                                  Offset="1.6" />
-                </LinearGradientBrush>
-            </Border.Background>
-
+        <Border x:Name="ShellBorder"
+                Margin="8"
+                CornerRadius="14"
+                Background="{StaticResource UI.Bg}"
+                BorderBrush="#1C2328"
+                BorderThickness="1">
             <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="92" />
-                    <RowDefinition Height="2" />
-                    <RowDefinition Height="56" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="52" />
-                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="216" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-                <!--#region Header -->
-                <Grid x:Name="Topbar" Margin="30,0,18,0">
-                    <Border Width="60"
-                            Height="60"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Center"
-                            Background="{DynamicResource ThemeColorTransparent}"
-                            BorderBrush="#14FFFFFF"
-                            BorderThickness="1">
-                        <Path x:Name="WhalesLogo"
-                              Fill="White"
-                              Stretch="Fill"
-                              Width="28"
-                              Height="15"
-                              HorizontalAlignment="Center"
-                              VerticalAlignment="Center">
-                            <Path.Data>
-                                <PathGeometry Figures="M 18.2472,490.72756 0.18686636,472.66723 153.0173,318.84293 305.84774,165.01862 l 17.74245,17.70593 17.74244,17.70592 17.0189,-16.98112 c 9.36039,-9.33961 17.60957,-16.98112 18.33151,-16.98112 0.72194,0 69.86022,68.54563 153.64061,152.32363 l 152.32798,152.32362 -18.32581,18.45368 -18.3258,18.45368 -152.3021,-153.11064 -152.3021,-153.11063 -20.36457,20.6423 C 309.83073,233.79713 241.18587,302.86906 168.4871,375.93703 L 36.307534,508.7879 Z"
-                                              FillRule="NonZero" />
-                            </Path.Data>
-                        </Path>
-                    </Border>
-
-                    <StackPanel Margin="82,0,0,0"
-                                VerticalAlignment="Center"
-                                HorizontalAlignment="Left">
-                        <TextBlock FontFamily="{StaticResource UIFont}"
-                                   FontSize="30"
-                                   FontWeight="SemiBold">
-                            <Run Text="WHALES" Foreground="{StaticResource UI.Text}" />
-                            <Run Text="ENGINE" Foreground="{DynamicResource ThemeColor}" />
-                        </TextBlock>
-                        <TextBlock FontFamily="{StaticResource UIFont}"
-                                   FontSize="13"
-                                   Margin="1,2,0,0"
-                                   Foreground="{StaticResource UI.TextDim}"
-                                   Text="AI AIM ASSIST  /  CUDA" />
-                    </StackPanel>
-
-                    <StackPanel Orientation="Horizontal"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center">
-                        <!-- Live status chips: inference rate, execution provider, config, model + aim state -->
-                        <Border Style="{StaticResource StatusChipBox}" ToolTip="Inference frames per second (0 while idle)">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Style="{StaticResource StatusChipLabel}" Text="FPS" />
-                                <TextBlock x:Name="FpsText" Style="{StaticResource StatusChipValue}" MinWidth="26" Text="0" />
-                            </StackPanel>
-                        </Border>
-                        <Border Style="{StaticResource StatusChipBox}" ToolTip="ONNX execution provider used by the loaded model">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Style="{StaticResource StatusChipLabel}" Text="ENGINE" />
-                                <TextBlock x:Name="ProviderText" Style="{StaticResource StatusChipValue}" Text="N/A" />
-                            </StackPanel>
-                        </Border>
-                        <Border x:Name="PortChip"
-                                Background="{DynamicResource ThemeColorTransparent}"
-                                BorderBrush="{DynamicResource ThemeColor}"
-                                BorderThickness="1"
-                                Height="30"
-                                Padding="12,0"
-                                Margin="0,0,8,0"
-                                VerticalAlignment="Center"
-                                Cursor="Hand"
-                                PreviewMouseLeftButtonDown="PortChip_Click"
-                                ToolTip="Click to connect to an Arduino COM port">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Rectangle x:Name="PortDot"
-                                           Width="8"
-                                           Height="8"
-                                           Fill="{StaticResource UI.TextDim}"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,8,0" />
-                                <TextBlock Style="{StaticResource StatusChipLabel}" Text="PORT" />
-                                <TextBlock x:Name="PortChipValue"
-                                           Style="{StaticResource StatusChipValue}"
-                                           MinWidth="90"
-                                           Text="CLICK TO CONNECT" />
-                                <Path Data="M 0,0 L 8,0 L 4,5 Z"
-                                      Fill="{StaticResource UI.TextDim}"
-                                      VerticalAlignment="Center"
-                                      Margin="8,2,0,0" />
-                            </StackPanel>
-                        </Border>
-                        <Popup x:Name="PortPopup"
-                               PlacementTarget="{Binding ElementName=PortChip}"
-                               Placement="Bottom"
-                               StaysOpen="True"
-                               AllowsTransparency="True"
-                               PopupAnimation="Fade">
-                            <Border Background="#F0110D10"
-                                    BorderBrush="{DynamicResource ThemeColor}"
-                                    BorderThickness="1"
-                                    Padding="14,10"
-                                    MinWidth="200">
-                                <StackPanel>
-                                    <TextBlock FontFamily="{StaticResource UIFont}"
-                                               FontSize="11"
-                                               FontWeight="SemiBold"
-                                               Foreground="{StaticResource UI.TextDim}"
-                                               Margin="0,0,0,6"
-                                               Text="SELECT A COM PORT TO CONNECT" />
-                                    <TextBlock x:Name="COMPortsTextBlock"
-                                               FontFamily="{StaticResource UIFont}"
-                                               FontSize="14"
-                                               Foreground="{StaticResource UI.Text}"
-                                               TextWrapping="Wrap" />
-                                </StackPanel>
+                <!--#region Sidebar -->
+                <Border Background="{StaticResource UI.Panel}"
+                        BorderBrush="#1C2328"
+                        BorderThickness="0,0,1,0"
+                        CornerRadius="13,0,0,13"
+                        MouseLeftButtonDown="DragArea_MouseLeftButtonDown">
+                    <DockPanel Margin="14,18,14,14" LastChildFill="False">
+                        <!-- Brand -->
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,4,8,20">
+                            <Border Width="34" Height="34" CornerRadius="9" Background="{DynamicResource ThemeColorTransparent}">
+                                <Path x:Name="WhalesLogo"
+                                      Fill="{DynamicResource ThemeColor}"
+                                      Stretch="Fill"
+                                      Width="17"
+                                      Height="9"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center">
+                                    <Path.Data>
+                                        <PathGeometry Figures="M 18.2472,490.72756 0.18686636,472.66723 153.0173,318.84293 305.84774,165.01862 l 17.74245,17.70593 17.74244,17.70592 17.0189,-16.98112 c 9.36039,-9.33961 17.60957,-16.98112 18.33151,-16.98112 0.72194,0 69.86022,68.54563 153.64061,152.32363 l 152.32798,152.32362 -18.32581,18.45368 -18.3258,18.45368 -152.3021,-153.11064 -152.3021,-153.11063 -20.36457,20.6423 C 309.83073,233.79713 241.18587,302.86906 168.4871,375.93703 L 36.307534,508.7879 Z"
+                                                      FillRule="NonZero" />
+                                    </Path.Data>
+                                </Path>
                             </Border>
-                        </Popup>
-                        <Border Style="{StaticResource StatusChipBox}" ToolTip="Currently loaded config">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Style="{StaticResource StatusChipLabel}" Text="CONFIG" />
-                                <TextBlock x:Name="ConfigText" Style="{StaticResource StatusChipValue}" MaxWidth="150" Text="DEFAULT" />
-                            </StackPanel>
-                        </Border>
-                        <Border x:Name="StatusChip" Style="{StaticResource StatusChipBox}" Margin="0,0,16,0">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Rectangle x:Name="StatusDot"
-                                           Width="8"
-                                           Height="8"
-                                           Fill="{StaticResource UI.TextDim}"
-                                           VerticalAlignment="Center" />
-                                <TextBlock x:Name="StatusText"
-                                           Style="{StaticResource StatusChipValue}"
-                                           Margin="8,0,0,0"
-                                           MaxWidth="220"
-                                           Text="NO MODEL" />
-                            </StackPanel>
-                        </Border>
-                        <Button x:Name="Minimize"
-                                Style="{StaticResource UI.CaptionButton}"
-                                Content="&#xE921;"
-                                Click="Minimize_Click" />
-                        <Button x:Name="Exit"
-                                Style="{StaticResource UI.CaptionButton}"
-                                Content="&#xE8BB;"
-                                Click="Exit_Click" />
-                    </StackPanel>
-                </Grid>
-                <!--#endregion-->
-
-                <Rectangle Grid.Row="1" Fill="{DynamicResource ThemeColor}" />
-
-                <!--#region Tab bar -->
-                <Grid x:Name="Sidebar" Grid.Row="2" Margin="30,0,30,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <Button x:Name="PrevTabB"
-                            Style="{StaticResource UI.TabButton}"
-                            Padding="0"
-                            ToolTip="Previous tab (Q)"
-                            Click="PrevTab_Click">
-                        <Border Style="{StaticResource UI.KeyCap}">
-                            <TextBlock Style="{StaticResource UI.KeyCapText}" Text="Q" />
-                        </Border>
-                    </Button>
-
-                    <UniformGrid x:Name="TabStrip" Grid.Column="1" Rows="1">
-                        <Button x:Name="Menu1B" Tag="AimMenu" Style="{StaticResource UI.TabButton}" Content="AIM" Click="MenuSwitch" />
-                        <Button x:Name="Menu2B" Tag="ModelMenu" Style="{StaticResource UI.TabButton}" Content="MODELS" Click="MenuSwitch" />
-                        <Button x:Name="Menu3B" Tag="SettingsMenu" Style="{StaticResource UI.TabButton}" Content="SETTINGS" Click="MenuSwitch" />
-                        <Button x:Name="Menu4B" Tag="AboutMenu" Style="{StaticResource UI.TabButton}" Content="ABOUT" Click="MenuSwitch" />
-                    </UniformGrid>
-
-                    <!-- Sliding underline under the active tab -->
-                    <Canvas x:Name="TabIndicatorCanvas"
-                            Grid.Column="1"
-                            IsHitTestVisible="False"
-                            ClipToBounds="False">
-                        <Border x:Name="MenuHighlighter"
-                                Canvas.Bottom="8"
-                                Height="3"
-                                Width="0"
-                                Background="{DynamicResource ThemeColor}">
-                            <Border.RenderTransform>
-                                <TranslateTransform x:Name="MenuHighlighterOffset" />
-                            </Border.RenderTransform>
-                        </Border>
-                    </Canvas>
-
-                    <Button x:Name="NextTabB"
-                            Grid.Column="2"
-                            Style="{StaticResource UI.TabButton}"
-                            Padding="0"
-                            ToolTip="Next tab (E)"
-                            Click="NextTab_Click">
-                        <Border Style="{StaticResource UI.KeyCap}">
-                            <TextBlock Style="{StaticResource UI.KeyCapText}" Text="E" />
-                        </Border>
-                    </Button>
-                </Grid>
-                <!--#endregion-->
-
-                <!--#region Body: option list + detail panel -->
-                <Grid Grid.Row="3" Margin="30,2,30,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="18" />
-                        <ColumnDefinition Width="320" />
-                    </Grid.ColumnDefinitions>
-
-                    <Border Background="#B80C0A0C" />
-                    <Border Background="{StaticResource UI.Hatch}" IsHitTestVisible="False" />
-                    <Grid x:Name="ContentArea"
-                          Margin="0,8,0,8"
-                          PreviewMouseMove="ContentArea_PreviewMouseMove"
-                          PreviewMouseUp="ContentArea_StateMayHaveChanged"
-                          PreviewKeyUp="ContentArea_StateMayHaveChanged">
-                        <!-- UserControls will be loaded here dynamically -->
-                    </Grid>
-
-                    <!-- Detail panel: describes the selected option -->
-                    <Border Grid.Column="2"
-                            Background="#CC110D10"
-                            BorderBrush="{DynamicResource ThemeColor}"
-                            BorderThickness="0,2,0,0"
-                            Padding="26,22,26,22">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-
-                            <TextBlock x:Name="DetailTitle"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="24"
-                                       FontWeight="SemiBold"
-                                       Foreground="{StaticResource UI.Text}"
-                                       TextWrapping="Wrap"
-                                       Text="Aim" />
-
-                            <Border x:Name="DetailBadge"
-                                    Grid.Row="1"
-                                    HorizontalAlignment="Left"
-                                    MinWidth="180"
-                                    Height="50"
-                                    Margin="0,22,0,0"
-                                    Padding="20,0"
-                                    Background="{DynamicResource ThemeColor}"
-                                    Visibility="Collapsed">
-                                <TextBlock x:Name="DetailBadgeText"
-                                           FontFamily="{StaticResource UIFont}"
-                                           FontSize="19"
+                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock FontFamily="{StaticResource UIHeadFont}"
+                                           FontSize="15"
                                            FontWeight="SemiBold"
-                                           Foreground="White"
-                                           VerticalAlignment="Center"
-                                           TextTrimming="CharacterEllipsis"
-                                           MaxWidth="230"
-                                           Text="ENABLED" />
-                            </Border>
+                                           Foreground="{StaticResource UI.Text}"
+                                           Text="WHALES" />
+                                <TextBlock FontFamily="{StaticResource UIFont}"
+                                           FontSize="11.5"
+                                           Foreground="{StaticResource UI.TextDim}"
+                                           Text="AI aim assist" />
+                            </StackPanel>
+                        </StackPanel>
 
-                            <TextBlock x:Name="DetailDescription"
-                                       Grid.Row="2"
-                                       Margin="0,22,0,0"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="15"
-                                       LineHeight="22"
-                                       Foreground="#B8ADB1"
-                                       TextWrapping="Wrap"
-                                       Text="Hover an option to see what it does." />
+                        <!-- Navigation (Tag = page name) -->
+                        <StackPanel x:Name="NavPanel" DockPanel.Dock="Top">
+                            <RadioButton Style="{StaticResource UI.NavButton}" GroupName="Nav" Tag="Home" Checked="Nav_Checked" IsChecked="True">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Style="{StaticResource UI.NavIcon}" Data="M3,10.5 L12,3 L21,10.5 M5.5,9 L5.5,21 L18.5,21 L18.5,9" />
+                                    <TextBlock Text="Home" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton Style="{StaticResource UI.NavButton}" GroupName="Nav" Tag="Aim" Checked="Nav_Checked">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Style="{StaticResource UI.NavIcon}" Data="M4,12 A8,8 0 1 1 20,12 A8,8 0 1 1 4,12 M12,2 L12,7 M12,17 L12,22 M2,12 L7,12 M17,12 L22,12" />
+                                    <TextBlock Text="Aim" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton Style="{StaticResource UI.NavButton}" GroupName="Nav" Tag="Visuals" Checked="Nav_Checked">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Style="{StaticResource UI.NavIcon}" Data="M2,12 C2,12 5.5,5 12,5 C18.5,5 22,12 22,12 C22,12 18.5,19 12,19 C5.5,19 2,12 2,12 Z M9,12 A3,3 0 1 1 15,12 A3,3 0 1 1 9,12" />
+                                    <TextBlock Text="Visuals" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton Style="{StaticResource UI.NavButton}" GroupName="Nav" Tag="Models" Checked="Nav_Checked">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Style="{StaticResource UI.NavIcon}" Data="M21,8 L12,3 L3,8 L3,16 L12,21 L21,16 Z M3,8 L12,13 L21,8 M12,13 L12,21" />
+                                    <TextBlock Text="Models" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton Style="{StaticResource UI.NavButton}" GroupName="Nav" Tag="Device" Checked="Nav_Checked">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Style="{StaticResource UI.NavIcon}" Data="M9,2 L9,7 M15,2 L15,7 M6,7 L18,7 L18,11 A6,6 0 0 1 6,11 Z M12,17 L12,22" />
+                                    <TextBlock Text="Device" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton Style="{StaticResource UI.NavButton}" GroupName="Nav" Tag="Settings" Checked="Nav_Checked">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Style="{StaticResource UI.NavIcon}" Data="M4,6 L13,6 M17,6 L20,6 M4,12 L7,12 M11,12 L20,12 M4,18 L15,18 M19,18 L20,18 M13,6 A2,2 0 1 0 17,6 A2,2 0 1 0 13,6 M7,12 A2,2 0 1 0 11,12 A2,2 0 1 0 7,12 M15,18 A2,2 0 1 0 19,18 A2,2 0 1 0 15,18" />
+                                    <TextBlock Text="Settings" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </RadioButton>
+                        </StackPanel>
 
-                            <TextBlock x:Name="DetailHint"
-                                       Grid.Row="4"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="13"
-                                       Foreground="{StaticResource UI.TextDim}"
-                                       TextWrapping="Wrap"
-                                       Text="Use Q / E to switch tabs." />
+                        <!-- Aim switch: always reachable from every page -->
+                        <Border DockPanel.Dock="Bottom"
+                                Background="{StaticResource UI.CardBg}"
+                                BorderBrush="{StaticResource UI.CardBorder}"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="14">
+                            <StackPanel>
+                                <Grid>
+                                    <TextBlock FontFamily="{StaticResource UIFont}"
+                                               FontSize="13.5"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource UI.Text}"
+                                               VerticalAlignment="Center"
+                                               Text="Aim assist" />
+                                    <Border x:Name="SidebarSwitchHost" HorizontalAlignment="Right" />
+                                </Grid>
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                    <Rectangle x:Name="StatusDot"
+                                               Width="8"
+                                               Height="8"
+                                               RadiusX="4"
+                                               RadiusY="4"
+                                               Fill="{StaticResource UI.TextDim}"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock x:Name="StatusText"
+                                               Margin="8,0,0,0"
+                                               FontFamily="{StaticResource UIFont}"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource UI.TextSoft}"
+                                               TextTrimming="CharacterEllipsis"
+                                               MaxWidth="150"
+                                               Text="No model loaded" />
+                                </StackPanel>
+                                <WrapPanel Margin="0,10,0,0">
+                                    <TextBlock Style="{StaticResource UI.Small}" Text="Hold " VerticalAlignment="Center" />
+                                    <Border Style="{StaticResource UI.KeyCap}" Margin="2,0">
+                                        <TextBlock x:Name="SidebarAimKey" Style="{StaticResource UI.KeyCapText}" Text="Right" />
+                                    </Border>
+                                    <TextBlock Style="{StaticResource UI.Small}" Text=" to aim" VerticalAlignment="Center" />
+                                </WrapPanel>
+                                <WrapPanel Margin="0,6,0,0">
+                                    <Border Style="{StaticResource UI.KeyCap}" Margin="0,0,2,0">
+                                        <TextBlock x:Name="SidebarStopKey" Style="{StaticResource UI.KeyCapText}" Text="Delete" />
+                                    </Border>
+                                    <TextBlock Style="{StaticResource UI.Small}" Text=" stops everything" VerticalAlignment="Center" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                    </DockPanel>
+                </Border>
+                <!--#endregion-->
+
+                <!--#region Main area -->
+                <Grid Grid.Column="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="68" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Header: page title, advanced switch, live status chips, window buttons -->
+                    <Border BorderBrush="#1C2328"
+                            BorderThickness="0,0,0,1"
+                            Background="Transparent"
+                            MouseLeftButtonDown="DragArea_MouseLeftButtonDown">
+                        <Grid Margin="24,0,14,0">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock x:Name="PageTitle" Style="{StaticResource UI.PageTitle}" Text="Home" />
+                                <TextBlock x:Name="PageSubtitle" Style="{StaticResource UI.Small}" FontSize="12.5" Margin="0,2,0,0" Text="Status and quick setup" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <Border Style="{StaticResource UI.Chip}" Padding="12,0,6,0" ToolTip="Show settings most people never need to change">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource UI.ChipLabel}" Foreground="{StaticResource UI.TextSoft}" FontSize="12" Text="Show advanced" Margin="0,0,10,0" />
+                                        <Border x:Name="AdvancedSwitchHost" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource UI.Chip}" ToolTip="Detection frames per second (0 while idle)">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource UI.ChipLabel}" Text="FPS" />
+                                        <TextBlock x:Name="FpsText" Style="{StaticResource UI.ChipValue}" MinWidth="22" Text="0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource UI.Chip}" ToolTip="Engine running the loaded model">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource UI.ChipLabel}" Text="Engine" />
+                                        <TextBlock x:Name="ProviderText" Style="{StaticResource UI.ChipValue}" Text="N/A" />
+                                    </StackPanel>
+                                </Border>
+                                <Border x:Name="PortChip"
+                                        Style="{StaticResource UI.Chip}"
+                                        Cursor="Hand"
+                                        PreviewMouseLeftButtonDown="PortChip_Click"
+                                        ToolTip="Click to connect to an Arduino COM port">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse x:Name="PortDot"
+                                                 Width="8"
+                                                 Height="8"
+                                                 Fill="{StaticResource UI.TextDim}"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,8,0" />
+                                        <TextBlock x:Name="PortChipValue"
+                                                   Style="{StaticResource UI.ChipValue}"
+                                                   Text="Click to connect" />
+                                        <Path Data="M 0,0 L 8,0 L 4,5 Z"
+                                              Fill="{StaticResource UI.TextDim}"
+                                              VerticalAlignment="Center"
+                                              Margin="8,1,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Popup x:Name="PortPopup"
+                                       PlacementTarget="{Binding ElementName=PortChip}"
+                                       Placement="Bottom"
+                                       VerticalOffset="6"
+                                       StaysOpen="True"
+                                       AllowsTransparency="True"
+                                       PopupAnimation="Fade">
+                                    <Border Background="#F2121719"
+                                            BorderBrush="#2A343A"
+                                            BorderThickness="1"
+                                            CornerRadius="10"
+                                            Padding="14,10"
+                                            MinWidth="210">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource UI.Small}"
+                                                       FontWeight="SemiBold"
+                                                       Margin="0,0,0,6"
+                                                       Text="Select a COM port to connect" />
+                                            <TextBlock x:Name="COMPortsTextBlock"
+                                                       FontFamily="{StaticResource UIFont}"
+                                                       FontSize="14"
+                                                       LineHeight="24"
+                                                       Foreground="{StaticResource UI.Text}"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+                                </Popup>
+                                <Button x:Name="Minimize"
+                                        Style="{StaticResource UI.CaptionButton}"
+                                        Margin="12,0,0,0"
+                                        Content="&#xE921;"
+                                        Click="Minimize_Click" />
+                                <Button x:Name="Exit"
+                                        Style="{StaticResource UI.CaptionButton}"
+                                        Content="&#xE8BB;"
+                                        Click="Exit_Click" />
+                            </StackPanel>
                         </Grid>
                     </Border>
+
+                    <!-- Pages are created in code (MainWindow.Pages.cs) and swapped in here -->
+                    <Grid x:Name="ContentArea" Grid.Row="1" ClipToBounds="True" />
                 </Grid>
-                <!--#endregion-->
-
-                <!--#region Footer -->
-                <DockPanel Grid.Row="4" Margin="30,0,30,0" LastChildFill="True">
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
-                        <Border Style="{StaticResource UI.KeyCap}">
-                            <TextBlock Style="{StaticResource UI.KeyCapText}" Text="LMB" />
-                        </Border>
-                        <TextBlock Style="{StaticResource FooterHint}" Text="SELECT" />
-                        <Border Style="{StaticResource UI.KeyCap}">
-                            <TextBlock Style="{StaticResource UI.KeyCapText}" Text="Q" />
-                        </Border>
-                        <Border Style="{StaticResource UI.KeyCap}" Margin="4,0,0,0">
-                            <TextBlock Style="{StaticResource UI.KeyCapText}" Text="E" />
-                        </Border>
-                        <TextBlock Style="{StaticResource FooterHint}" Text="TABS" />
-                    </StackPanel>
-
-                    <TextBlock x:Name="ItemCounter"
-                               DockPanel.Dock="Right"
-                               FontFamily="{StaticResource UIFont}"
-                               FontSize="14"
-                               Foreground="{StaticResource UI.TextDim}"
-                               VerticalAlignment="Center"
-                               Text="0 / 0" />
-                </DockPanel>
                 <!--#endregion-->
             </Grid>
         </Border>
-
-        <!-- Corner brackets framing the window -->
-        <Path Style="{StaticResource CornerBracket}" HorizontalAlignment="Left" VerticalAlignment="Top" />
-        <Path Style="{StaticResource CornerBracket}" HorizontalAlignment="Right" VerticalAlignment="Top" RenderTransformOrigin="0.5,0.5">
-            <Path.RenderTransform><ScaleTransform ScaleX="-1" /></Path.RenderTransform>
-        </Path>
-        <Path Style="{StaticResource CornerBracket}" HorizontalAlignment="Left" VerticalAlignment="Bottom" RenderTransformOrigin="0.5,0.5">
-            <Path.RenderTransform><ScaleTransform ScaleY="-1" /></Path.RenderTransform>
-        </Path>
-        <Path Style="{StaticResource CornerBracket}" HorizontalAlignment="Right" VerticalAlignment="Bottom" RenderTransformOrigin="0.5,0.5">
-            <Path.RenderTransform><ScaleTransform ScaleX="-1" ScaleY="-1" /></Path.RenderTransform>
-        </Path>
     </Grid>
 </Window>

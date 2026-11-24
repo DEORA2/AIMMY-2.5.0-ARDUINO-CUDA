@@ -3,18 +3,20 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:local="clr-namespace:Whales2.UILibrary"
              mc:Ignorable="d"
-             d:DesignWidth="282.5"
-             d:DesignHeight="46">
-    <Grid Height="46">
+             d:DesignWidth="380">
+    <Grid MinHeight="48">
         <Border Style="{StaticResource UI.RowHighlight}" />
         <Rectangle Style="{StaticResource UI.RowAccent}" />
 
-        <Label x:Name="ButtonTitle"
-               Style="{StaticResource UI.RowLabel}"
-               Content="Save Config"
-               Margin="0,0,44,0" />
+        <StackPanel VerticalAlignment="Center" Margin="0,9,44,9">
+            <Label x:Name="ButtonTitle"
+                   Style="{StaticResource UI.RowLabel}"
+                   Content="Action" />
+            <TextBlock x:Name="RowDescription"
+                       Style="{StaticResource UI.RowDesc}"
+                       Visibility="Collapsed" />
+        </StackPanel>
 
         <TextBlock FontFamily="Segoe MDL2 Assets"
                    Text="&#xE76C;"

@@ -3,31 +3,36 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:local="clr-namespace:Whales2.UILibrary"
              mc:Ignorable="d"
-             d:DesignWidth="282.5"
-             Height="68">
+             d:DesignWidth="380">
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="36" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Grid.RowSpan="2" Style="{StaticResource UI.RowHighlight}" />
-        <Rectangle Grid.RowSpan="2" Style="{StaticResource UI.RowAccent}" />
+        <Border Grid.RowSpan="3" Style="{StaticResource UI.RowHighlight}" />
+        <Rectangle Grid.RowSpan="3" Style="{StaticResource UI.RowAccent}" />
 
         <Label x:Name="SliderTitle"
                Style="{StaticResource UI.RowLabel}"
-               Content="Mouse Sensitivity"
+               Content="Slider"
                HorizontalAlignment="Left"
-               Margin="0,0,110,0" />
+               Margin="0,10,110,0" />
         <Label x:Name="AdjustNotifier"
                Style="{StaticResource UI.RowValue}"
-               Content="0.95 Sensitivity"
+               Content=""
                HorizontalAlignment="Right"
+               Margin="0,10,0,0"
                Foreground="{DynamicResource ThemeColor}" />
 
-        <Grid Grid.Row="1" Margin="22,0,16,8">
+        <TextBlock x:Name="RowDescription"
+                   Grid.Row="1"
+                   Style="{StaticResource UI.RowDesc}"
+                   Visibility="Collapsed" />
+
+        <Grid Grid.Row="2" Margin="14,6,14,10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
@@ -36,8 +41,8 @@
             <Button x:Name="SubtractOne"
                     Style="{StaticResource UI.SquareButton}"
                     Content="&#xE949;"
-                    Width="20"
-                    Height="20" />
+                    Width="22"
+                    Height="22" />
             <Slider x:Name="Slider"
                     Grid.Column="1"
                     Margin="10,0"
@@ -50,8 +55,8 @@
                     Grid.Column="2"
                     Style="{StaticResource UI.SquareButton}"
                     Content="&#xE948;"
-                    Width="20"
-                    Height="20" />
+                    Width="22"
+                    Height="22" />
         </Grid>
     </Grid>
 </UserControl>

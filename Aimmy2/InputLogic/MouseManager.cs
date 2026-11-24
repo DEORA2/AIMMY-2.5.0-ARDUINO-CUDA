@@ -25,18 +25,49 @@ namespace InputLogic
         public static bool IsEMASmoothingEnabled = false;
         public static HidMouseDevice? HidDevice = null;
 
-        public static void InitArduino(string comPort)
+        public static bool IsArduinoConnected => arduinoInput != null;
+
+        /// <summary>Opens the Arduino on a COM port. Returns false (after showing the error) when it fails.</summary>
+        public static bool InitArduino(string comPort)
         {
             try
             {
                 arduinoInput?.Close();
                 arduinoInput = null;
                 arduinoInput = new ArduinoInput(comPort);
+                return true;
             }
             catch (Exception ex)
             {
                 System.Windows.MessageBox.Show($"Failed to connect to {comPort}:\n{ex.Message}", "Arduino Error");
+                return false;
             }
+        }
+
+        public static void CloseArduino()
+        {
+            arduinoInput?.Close();
+            arduinoInput = null;
+        }
+
+        /// <summary>Nudges the cursor right and back twice through the selected device, to check it works.</summary>
+        public static async Task SendTestMoveAsync()
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                SendRawMove(60, 0);
+                await Task.Delay(180);
+                SendRawMove(-60, 0);
+                await Task.Delay(180);
+            }
+        }
+
+        private static void SendRawMove(int x, int y)
+        {
+            if (Dictionary.dropdownState["Mouse Movement Method"]?.ToString() == "RP2350")
+                HidDevice?.SendMove(x, y);
+            else
+                arduinoInput?.SendMouseMove(x, y);
         }
 
         private static readonly Random MouseRandom = new();
@@ -168,42 +199,13 @@ namespace InputLogic
             _remainderY = 0;
             previousX = 0;
             previousY = 0;
+            PathController.Reset();
         }
 
-        private static PointF ComputePathMove(PointF end, double sensitivity)
-        {
-            PointF start = PointF.Empty;
-            double t = 1 - sensitivity;
-
-            switch (Dictionary.dropdownState["Movement Path"])
-            {
-                case "Cubic Bezier":
-                    PointF control1 = new PointF(end.X / 3f, end.Y / 3f);
-                    PointF control2 = new PointF(2f * end.X / 3f, 2f * end.Y / 3f);
-                    return MovementPaths.CubicBezier(start, end, control1, control2, t);
-                case "Exponential":
-                    return MovementPaths.Exponential(start, end, 1 - (sensitivity - 0.2), 3.0);
-                case "Adaptive":
-                    return MovementPaths.Adaptive(start, end, t);
-                case "Perlin Noise":
-                    return MovementPaths.PerlinNoise(start, end, t, 20, 0.5);
-                case "Sine Wave":
-                    return MovementPaths.SineWave(start, end, t);
-                case "Ease In-Out":
-                    return MovementPaths.EaseInOut(start, end, t);
-                case "Overshoot":
-                    return MovementPaths.Overshoot(start, end, t);
-                case "Catmull-Rom":
-                    return MovementPaths.CatmullRom(start, end, t);
-                case "Smooth Step":
-                    return MovementPaths.SmoothStep(start, end, t);
-                case "Spiral":
-                    return MovementPaths.Spiral(start, end, t);
-                case "Linear":
-                default:
-                    return MovementPaths.Lerp(start, end, t);
-            }
-        }
+        // Follows the selected movement path when a target is picked up, then tracks it
+        private static readonly AimPathController PathController = new(Environment.TickCount);
+        // Frame time assumed for the first frame after a reset (there is no previous frame to measure)
+        private const double FIRST_FRAME_SECONDS = 1.0 / 144.0;
 
         public static void MoveCrosshair(int detectedX, int detectedY)
         {
@@ -239,12 +241,11 @@ namespace InputLogic
             if (Math.Abs(errorX) < AIM_DEADZONE_PIXELS) errorX = 0;
             if (Math.Abs(errorY) < AIM_DEADZONE_PIXELS) errorY = 0;
 
-            PointF pathMove = ComputePathMove(
-                new PointF((float)errorX, (float)errorY),
-                Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
+            double frameSeconds = dt <= 0 || dt > AIM_STATE_RESET_SECONDS ? FIRST_FRAME_SECONDS : dt;
+            double sensitivity = Convert.ToDouble(Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
+            string path = (string)(Dictionary.dropdownState["Movement Path"]?.ToString() ?? PathShapes.Classic);
 
-            double moveX = pathMove.X;
-            double moveY = pathMove.Y;
+            var (moveX, moveY) = PathController.NextMove(errorX, errorY, frameSeconds, sensitivity, path);
 
             if (IsEMASmoothingEnabled)
             {

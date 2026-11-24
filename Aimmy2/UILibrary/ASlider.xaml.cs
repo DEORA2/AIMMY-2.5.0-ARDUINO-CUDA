@@ -1,48 +1,43 @@
 ﻿using System.Windows.Controls;
-using System.Windows.Input;
 
 namespace Whales2.UILibrary
 {
     /// <summary>
-    /// Interaction logic for ASlider.xaml
+    /// Option row with a slider, its current value and -/+ step buttons.
     /// </summary>
     public partial class ASlider : UserControl
     {
-        public ASlider(string Text, string NotifierText, double ButtonSteps, string? tooltip = null)
+        private readonly string _unit;
+
+        /// <summary>Unit shown after the value (e.g. "px").</summary>
+        public string Unit => _unit;
+
+        /// <summary>Amount the -/+ buttons change the value by.</summary>
+        public double Step { get; }
+
+        public ASlider(string Text, string NotifierText, double ButtonSteps, string? description = null)
         {
             InitializeComponent();
 
             SliderTitle.Content = Text;
+            _unit = NotifierText;
+            Step = ButtonSteps;
+            RowText.SetDescription(RowDescription, description);
 
-            if (!string.IsNullOrEmpty(tooltip))
-            {
-                var tt = new System.Windows.Controls.ToolTip { Content = tooltip };
-                if (TryFindResource("Tooltip") is System.Windows.Style style)
-                    tt.Style = style;
-                ToolTip = tt;
-            }
-
-            Slider.ValueChanged += (s, e) =>
-            {
-                AdjustNotifier.Content = $"{Slider.Value:F2} {NotifierText}";
-            };
+            Slider.ValueChanged += (s, e) => RefreshValueText();
 
             SubtractOne.Click += (s, e) => UpdateSliderValue(-ButtonSteps);
             AddOne.Click += (s, e) => UpdateSliderValue(ButtonSteps);
         }
 
+        public void RefreshValueText()
+        {
+            AdjustNotifier.Content = $"{Slider.Value:0.##} {_unit}".TrimEnd();
+        }
+
         private void UpdateSliderValue(double change)
         {
             Slider.Value = Math.Round(Slider.Value + change, 2);
-        }
-
-        private void Slider_MouseUp(object sender, MouseButtonEventArgs e)
-        {
-        }
-
-        private void Slider_MouseUp_1(object sender, MouseButtonEventArgs e)
-        {
-            System.Windows.MessageBox.Show($"{Slider.Value:F2}");
         }
     }
 }

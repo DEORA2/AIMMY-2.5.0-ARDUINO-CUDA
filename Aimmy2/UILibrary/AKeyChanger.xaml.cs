@@ -3,23 +3,15 @@
 namespace Whales2.UILibrary
 {
     /// <summary>
-    /// Interaction logic for AKeyChanger.xaml
+    /// Option row showing a bound key; clicking it starts a rebind.
     /// </summary>
     public partial class AKeyChanger : System.Windows.Controls.UserControl
     {
-        public AKeyChanger(string Text, string Keybind, string? tooltip = null)
+        public AKeyChanger(string Text, string Keybind, string? description = null)
         {
             InitializeComponent();
             KeyChangerTitle.Content = Text;
-
-            if (!string.IsNullOrEmpty(tooltip))
-            {
-                var tt = new System.Windows.Controls.ToolTip { Content = tooltip };
-                if (TryFindResource("Tooltip") is System.Windows.Style style)
-                    tt.Style = style;
-                ToolTip = tt;
-            }
-
+            RowText.SetDescription(RowDescription, description);
             KeyNotifier.Content = KeybindNameManager.ConvertToRegularKey(Keybind);
         }
     }

@@ -3,29 +3,33 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:local="clr-namespace:Whales2.UILibrary"
              mc:Ignorable="d"
-             d:DesignWidth="282.5"
-             d:DesignHeight="46">
-    <Grid Height="46">
+             d:DesignWidth="380">
+    <Grid MinHeight="48">
         <Border Style="{StaticResource UI.RowHighlight}" />
         <Rectangle Style="{StaticResource UI.RowAccent}" />
 
-        <Label x:Name="ColorChangerTitle"
-               Style="{StaticResource UI.RowLabel}"
-               Content="Change Aim Keybind"
-               Margin="0,0,60,0" />
+        <StackPanel VerticalAlignment="Center" Margin="0,9,60,9">
+            <Label x:Name="ColorChangerTitle"
+                   Style="{StaticResource UI.RowLabel}"
+                   Content="Colour" />
+            <TextBlock x:Name="RowDescription"
+                       Style="{StaticResource UI.RowDesc}"
+                       Visibility="Collapsed" />
+        </StackPanel>
 
-        <!-- Color swatch framed like the checkbox -->
+        <!-- Colour swatch -->
         <Border HorizontalAlignment="Right"
                 VerticalAlignment="Center"
-                Width="22"
+                Width="28"
                 Height="22"
-                Margin="0,0,16,0"
-                BorderBrush="{StaticResource UI.Box}"
-                BorderThickness="2"
+                Margin="0,0,14,0"
+                CornerRadius="6"
+                BorderBrush="#2A343A"
+                BorderThickness="1"
                 Padding="2">
             <Border x:Name="ColorChangingBorder"
+                    CornerRadius="4"
                     Background="Red" />
         </Border>
 
