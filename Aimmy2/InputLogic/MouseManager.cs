@@ -207,6 +207,20 @@ namespace InputLogic
         // Frame time assumed for the first frame after a reset (there is no previous frame to measure)
         private const double FIRST_FRAME_SECONDS = 1.0 / 144.0;
 
+        // Set by CoastFrame: the next real detection must not compute target speed across the gap
+        private static bool _skipVelocityOnce;
+
+        /// <summary>
+        /// A frame where the target is briefly not visible (sticky aim is holding on to it): send nothing,
+        /// but keep the aim state alive so tracking continues smoothly when it is seen again.
+        /// </summary>
+        public static void CoastFrame()
+        {
+            if (_lastAimTick != 0)
+                _lastAimTick = Stopwatch.GetTimestamp();
+            _skipVelocityOnce = true;
+        }
+
         public static void MoveCrosshair(int detectedX, int detectedY)
         {
             long nowTick = Stopwatch.GetTimestamp();
@@ -220,6 +234,12 @@ namespace InputLogic
             if (dt <= 0 || dt > AIM_STATE_RESET_SECONDS)
             {
                 ResetAimState(detectedX, detectedY);
+                _skipVelocityOnce = false;
+            }
+            else if (_skipVelocityOnce)
+            {
+                // First sighting after a gap: the position jump covers several frames, so it isn't a speed
+                _skipVelocityOnce = false;
             }
             else
             {

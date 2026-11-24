@@ -1083,6 +1083,16 @@ namespace Whales2.AILogic
                  Dictionary.toggleState["Aim Assist"] && InputBindingManager.IsHoldingBinding("Aim Keybind") ||
                  Dictionary.toggleState["Aim Assist"] && InputBindingManager.IsHoldingBinding("Second Aim Keybind")))
             {
+                // Sticky aim's stand-in for a briefly missing target is extrapolated from its on-screen
+                // speed, and during a fast swing most of that speed is our own turning. Steering at it
+                // made the aim chase its own motion and swing far past (worst for targets at the FOV
+                // edge, where detections drop out most). Hold the mouse until the target is seen again.
+                if (closestPrediction.IsPredicted)
+                {
+                    MouseManager.CoastFrame();
+                    return;
+                }
+
                 if (Dictionary.toggleState["Predictions"])
                 {
                     HandlePredictions(kalmanPrediction, closestPrediction, detectedX, detectedY);
