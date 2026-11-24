@@ -97,7 +97,7 @@ While you hold your aim key, Whales captures a square around your crosshair, run
 
 Press **Delete** at any time to stop everything. Press it again to turn aim assist back on.
 
-To keep your models and settings when updating, copy your old `bin` folder next to the new exe.
+From v2.5.6 on, Whales updates itself: it offers new releases when it starts, or when you click **Check for Updates** in Settings, and keeps your models and settings. When updating by hand, copy your old `bin` folder next to the new exe to keep them.
 
 ## Every option explained
 
@@ -285,9 +285,10 @@ The **Preview** card shows your FOV, boxes and tracers at real proportions and u
 | **Auto-label images** | Also writes the detection boxes as YOLO label files to `bin\labels`. |
 | **Appearance** | The accent colour used across the app, including the logo. |
 | **Keep window on top** | Keeps the Whales window above other windows. |
+| **Check for updates on start** | On by default. A few seconds after Whales opens, it checks this repository for a newer release. If there is one, it asks whether to download and install it (your models and settings are kept); otherwise it stays silent. |
 | **Save config** | Saves all your current settings as a `.cfg` file you can load later from the Models page. |
 | **Debug mode** (advanced) | Logs extra details, for troubleshooting. |
-| **About** | Version, update check and credits. |
+| **About** | Version (click it to open its release page), **Check for Updates**, a link to this repository, and the credits. |
 
 ## Supported models
 

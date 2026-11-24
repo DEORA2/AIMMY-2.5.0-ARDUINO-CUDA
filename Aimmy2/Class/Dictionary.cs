@@ -70,6 +70,7 @@ namespace Whales2.Class
             { "Mouse Background Effect", true },
             { "Debug Mode", false },
             { "UI TopMost", false },
+            { "Check For Updates On Start", true },
             //--
             { "StreamGuard", false },
             //--

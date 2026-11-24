@@ -118,10 +118,28 @@ namespace Whales2
 
                 UpdateAboutSpecs();
                 ThemeManager.LoadMediaSettings();
+
+                if (Dictionary.toggleState["Check For Updates On Start"])
+                    _ = CheckForUpdatesOnStartAsync();
             }
             catch (Exception ex)
             {
                 ShowError($"Error during startup: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>Looks for a newer release a few seconds after start; only speaks up when there is one.</summary>
+        private static async Task CheckForUpdatesOnStartAsync()
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(3));
+                using var updateManager = new UpdateManager();
+                await updateManager.CheckForUpdate(AppInfo.Version, quiet: true);
+            }
+            catch (Exception ex)
+            {
+                LogManager.Log(LogManager.LogLevel.Warning, $"Update check on start failed: {ex.Message}");
             }
         }
 

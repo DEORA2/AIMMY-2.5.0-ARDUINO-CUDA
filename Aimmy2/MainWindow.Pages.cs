@@ -1675,6 +1675,8 @@ namespace Whales2
             var app = new CardBuilder(this, "App", "Window and troubleshooting options")
                 .AddToggle("UI TopMost", "Keep window on top", "Stay above other windows",
                     t => uiManager.T_UITopMost = t)
+                .AddToggle("Check For Updates On Start", "Check for updates on start",
+                    "Look for a new version on GitHub each time Whales opens. You're asked before anything is downloaded")
                 .AddAction("Save config", "Save your current settings as a config you can load later",
                     () => new ConfigSaver().ShowDialog())
                 .AddToggle("Debug Mode", "Debug mode", "Log extra details for troubleshooting",

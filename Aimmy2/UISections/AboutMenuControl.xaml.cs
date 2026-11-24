@@ -1,5 +1,6 @@
 using Whales2.Theme;
 using Other;
+using Whales2.Other;
 using System.Diagnostics;
 using System.Net.Http;
 using System.Windows;
@@ -60,6 +61,8 @@ namespace Whales2.Controls
             _themeColor = new SolidColorBrush(ThemeManager.ThemeColor);
             _fontFamily = Application.Current.TryFindResource("UIFont") as FontFamily
                 ?? new FontFamily("Segoe UI"); // Fallback font
+
+            AboutDesc.Content = $"v{AppInfo.Version}";
 
             LoadCoreTeam();
             LoadContributors();
@@ -280,9 +283,8 @@ namespace Whales2.Controls
         {
             try
             {
-                var updateManager = new UpdateManager();
-                await updateManager.CheckForUpdate(AboutDesc.Content?.ToString() ?? "");
-                updateManager.Dispose();
+                using var updateManager = new UpdateManager();
+                await updateManager.CheckForUpdate(AppInfo.Version);
             }
             catch { }
         }
@@ -293,7 +295,7 @@ namespace Whales2.Controls
             {
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = "https://github.com/Babyhamsta/Whales",
+                    FileName = AppInfo.RepoUrl,
                     UseShellExecute = true
                 });
             }
@@ -317,10 +319,9 @@ namespace Whales2.Controls
         {
             try
             {
-                var version = AboutDesc.Content?.ToString()?.TrimStart('v') ?? "2.5.0";
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = $"https://github.com/Babyhamsta/Whales/releases/tag/v{version}",
+                    FileName = AppInfo.ReleaseUrl(AppInfo.Version),
                     UseShellExecute = true
                 });
             }

@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Whales2.Other
 {
-    public class GithubManager
+    public class GithubManager : IDisposable
     {
         private readonly HttpClient httpClient;
 
@@ -34,6 +34,34 @@ namespace Whales2.Other
             string downloadUrl = ((JsonElement)data["assets"]).EnumerateArray().First().GetProperty("browser_download_url").ToString();
 
             return (tagName, downloadUrl);
+        }
+
+        /// <summary>
+        /// The latest release's tag and its first .zip asset (falls back to the first asset).
+        /// </summary>
+        public async Task<(string tagName, string downloadUrl, long sizeBytes)> GetLatestReleaseZip(string owner, string repo)
+        {
+            using var response = await httpClient.GetAsync($"https://api.github.com/repos/{owner}/{repo}/releases/latest");
+            response.EnsureSuccessStatusCode();
+
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var root = doc.RootElement;
+            string tagName = root.GetProperty("tag_name").GetString() ?? throw new InvalidOperationException("The release has no tag");
+
+            JsonElement? chosen = null;
+            foreach (var asset in root.GetProperty("assets").EnumerateArray())
+            {
+                chosen ??= asset;
+                if (asset.GetProperty("name").GetString()?.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    chosen = asset;
+                    break;
+                }
+            }
+            if (chosen is not JsonElement zip)
+                throw new InvalidOperationException($"Release {tagName} has no download attached");
+
+            return (tagName, zip.GetProperty("browser_download_url").GetString()!, zip.GetProperty("size").GetInt64());
         }
 
         public async Task<IEnumerable<string?>> FetchGithubFilesAsync(string url)
