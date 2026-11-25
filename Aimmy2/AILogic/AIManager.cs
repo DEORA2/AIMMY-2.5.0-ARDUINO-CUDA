@@ -141,8 +141,10 @@ namespace Whales2.AILogic
 
         // Tensor reuse (model inference)
         private DenseTensor<float>? _reusableTensor;
-        private float[]? _reusableInputArray;
         private List<NamedOnnxValue>? _reusableInputs;
+
+        // What the last capture returned; the loop skips frames where the screen hadn't changed
+        private CaptureStatus _lastCaptureStatus = CaptureStatus.NewFrame;
 
         // Benchmarking
         private readonly Dictionary<string, BenchmarkData> _benchmarks = new();
@@ -156,11 +158,12 @@ namespace Whales2.AILogic
 
         private class BenchmarkData
         {
+            // All times in Stopwatch ticks, so sub-millisecond steps are measurable
             public long TotalTime { get; set; }
             public int CallCount { get; set; }
             public long MinTime { get; set; } = long.MaxValue;
             public long MaxTime { get; set; }
-            public double AverageTime => CallCount > 0 ? (double)TotalTime / CallCount : 0;
+            public double AverageMs => CallCount > 0 ? TicksToMs(TotalTime) / CallCount : 0;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -185,11 +188,13 @@ namespace Whales2.AILogic
             public void Dispose()
             {
                 _sw.Stop();
-                _manager.RecordBenchmark(_name, _sw.ElapsedMilliseconds);
+                _manager.RecordBenchmark(_name, _sw.ElapsedTicks);
             }
         }
 
-        private void RecordBenchmark(string name, long elapsedMs)
+        private static double TicksToMs(long ticks) => ticks * 1000.0 / Stopwatch.Frequency;
+
+        private void RecordBenchmark(string name, long elapsedTicks)
         {
             lock (_benchmarkLock)
             {
@@ -199,10 +204,10 @@ namespace Whales2.AILogic
                     _benchmarks[name] = data;
                 }
 
-                data.TotalTime += elapsedMs;
+                data.TotalTime += elapsedTicks;
                 data.CallCount++;
-                data.MinTime = Math.Min(data.MinTime, elapsedMs);
-                data.MaxTime = Math.Max(data.MaxTime, elapsedMs);
+                data.MinTime = Math.Min(data.MinTime, elapsedTicks);
+                data.MaxTime = Math.Max(data.MaxTime, elapsedTicks);
             }
         }
 
@@ -218,10 +223,10 @@ namespace Whales2.AILogic
                 foreach (var kvp in _benchmarks.OrderBy(x => x.Key))
                 {
                     var data = kvp.Value;
-                    lines.Add($"{kvp.Key}: Avg={data.AverageTime:F2}ms, Min={data.MinTime}ms, Max={data.MaxTime}ms, Count={data.CallCount}");
+                    lines.Add($"{kvp.Key}: Avg={data.AverageMs:F3}ms, Min={TicksToMs(data.MinTime):F3}ms, Max={TicksToMs(data.MaxTime):F3}ms, Count={data.CallCount}");
                 }
 
-                lines.Add($"Overall FPS: {(iterationCount > 0 ? 1000.0 / (totalTime / (double)iterationCount) : 0):F2}");
+                lines.Add($"Processed frames per busy second: {(totalTime > 0 ? iterationCount * 1000.0 / TicksToMs(totalTime) : 0):F1}, frames: {iterationCount}");
 
                 //File.WriteAllLines("AIManager_Benchmarks.txt", lines);
 
@@ -764,6 +769,15 @@ namespace Whales2.AILogic
                                 closestPrediction = await GetClosestPrediction();
                             }
 
+                            // Same picture as last time (or nothing captured): don't count it, don't aim
+                            // again on stale data, and leave the overlay as it is
+                            if (_lastCaptureStatus != CaptureStatus.NewFrame)
+                            {
+                                if (_lastCaptureStatus == CaptureStatus.Failed)
+                                    await Task.Delay(1);
+                                continue;
+                            }
+
                             CountFrame();
 
                             if (closestPrediction == null)
@@ -797,7 +811,7 @@ namespace Whales2.AILogic
                                 }
                             }
 
-                            totalTime += stopwatch.ElapsedMilliseconds;
+                            totalTime += stopwatch.ElapsedTicks;
                             iterationCount++;
                         }
                         else
@@ -1180,79 +1194,18 @@ namespace Whales2.AILogic
 
             Rectangle detectionBox = new(targetX - IMAGE_SIZE / 2, targetY - IMAGE_SIZE / 2, IMAGE_SIZE, IMAGE_SIZE); // Detection box dynamic size
 
-            Bitmap? frame;
-
-            using (Benchmark("ScreenGrab"))
-            {
-                frame = _captureManager.ScreenGrab(detectionBox);
-            }
-
-            if (frame == null) return null;
-
             IDisposableReadOnlyCollection<DisposableNamedOnnxValue>? results = null;
-            Tensor<float>? outputTensor = null;
+            Tensor<float>? outputTensor;
 
             try
             {
-                // Dispose() takes this lock too, so the model can't be freed mid-inference
-                lock (_inferenceLock)
-                {
-                    if (_disposed) return null;
-                    var graph = _graphRunner;
-                    if (graph != null)
-                    {
-                        // CUDA graph: write the frame straight into the page-locked input buffer, then replay
-                        using (Benchmark("BitmapToFloatArray"))
-                        {
-                            BitmapToFloatArrayInPlace(frame, graph.Input, IMAGE_SIZE);
-                        }
-                        using (Benchmark("ModelInference"))
-                        {
-                            graph.Run();
-                            outputTensor = graph.Output;
-                        }
-                    }
-                    else
-                    {
-                        float[] inputArray;
-                        using (Benchmark("BitmapToFloatArray"))
-                        {
-                            if (_reusableInputArray == null || _reusableInputArray.Length != 3 * IMAGE_SIZE * IMAGE_SIZE)
-                            {
-                                _reusableInputArray = new float[3 * IMAGE_SIZE * IMAGE_SIZE];
-                            }
-                            inputArray = _reusableInputArray;
-
-                            // Fill the reusable array
-                            BitmapToFloatArrayInPlace(frame, inputArray, IMAGE_SIZE);
-                        }
-
-                        // Reuse tensor and inputs - recreate if size changed
-                        /// this needs to be revised !!!!! - taylor
-                        if (_reusableTensor == null || _reusableTensor.Dimensions[2] != IMAGE_SIZE)
-                        {
-                            _reusableTensor = new DenseTensor<float>(inputArray, new int[] { 1, 3, IMAGE_SIZE, IMAGE_SIZE });
-                            _reusableInputs = new List<NamedOnnxValue> { NamedOnnxValue.CreateFromTensor(_inputName, _reusableTensor) };
-                        }
-                        else
-                        {
-                            // Directly copy into existing DenseTensor buffer
-                            inputArray.AsSpan().CopyTo(_reusableTensor.Buffer.Span);
-                        }
-
-                        if (_onnxModel == null) return null;
-                        using (Benchmark("ModelInference"))
-                        {
-                            results = _onnxModel.Run(_reusableInputs, _outputNames, _modeloptions);
-                            outputTensor = results[0].AsTensor<float>();
-                        }
-                    }
-                }
+                _lastCaptureStatus = CaptureAndInfer(detectionBox, out outputTensor, out results);
+                if (_lastCaptureStatus != CaptureStatus.NewFrame)
+                    return null;
 
                 if (outputTensor == null)
                 {
                     Log(LogLevel.Error, "Model inference returned null output tensor.", true, 2000);
-                    SaveFrame(frame);
                     return null;
                 }
 
@@ -1288,7 +1241,7 @@ namespace Whales2.AILogic
 
                 if (KDPredictions.Count == 0)
                 {
-                    SaveFrame(frame);
+                    SaveFrame();
                     // Sticky aim keeps following a target that just dropped out for a moment
                     Prediction? held = HandleStickyAim(null, KDPredictions, detectionBox);
                     if (held != null) UpdateDetectionBox(held, detectionBox);
@@ -1319,7 +1272,7 @@ namespace Whales2.AILogic
                 if (finalTarget != null)
                 {
                     UpdateDetectionBox(finalTarget, detectionBox);
-                    SaveFrame(frame, finalTarget.IsPredicted ? null : finalTarget); // never auto-label a guessed box
+                    SaveFrame(finalTarget.IsPredicted ? null : finalTarget); // never auto-label a guessed box
                     return finalTarget;
                 }
 
@@ -1327,9 +1280,68 @@ namespace Whales2.AILogic
             }
             finally
             {
-                // Always dispose the cloned frame to prevent memory leaks
-                frame.Dispose();
                 results?.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Captures the detection box straight into the model's input buffer and, if the screen changed, runs the model.
+        /// Returns NoNewFrame/Failed without running the model when there's no new picture.
+        /// </summary>
+        private CaptureStatus CaptureAndInfer(Rectangle detectionBox, out Tensor<float>? outputTensor,
+            out IDisposableReadOnlyCollection<DisposableNamedOnnxValue>? results)
+        {
+            outputTensor = null;
+            results = null;
+            bool keepFrame = Dictionary.toggleState["Collect Data While Playing"];
+
+            // Dispose() takes this lock too, so the model and its input buffer can't be freed mid-frame
+            lock (_inferenceLock)
+            {
+                if (_disposed) return CaptureStatus.Failed;
+
+                var graph = _graphRunner;
+                Span<float> input;
+                if (graph != null)
+                {
+                    // CUDA graph: the page-locked input buffer the graph replays from
+                    input = graph.Input;
+                }
+                else
+                {
+                    if (_onnxModel == null) return CaptureStatus.Failed;
+                    if (_reusableTensor == null || _reusableTensor.Dimensions[2] != IMAGE_SIZE)
+                    {
+                        _reusableTensor = new DenseTensor<float>(new[] { 1, 3, IMAGE_SIZE, IMAGE_SIZE });
+                        _reusableInputs = new List<NamedOnnxValue> { NamedOnnxValue.CreateFromTensor(_inputName, _reusableTensor) };
+                    }
+                    input = _reusableTensor.Buffer.Span;
+                }
+
+                CaptureStatus status;
+                using (Benchmark("ScreenGrab"))
+                {
+                    status = _captureManager.CaptureInto(detectionBox, input, IMAGE_SIZE, keepFrame);
+                }
+                if (status != CaptureStatus.NewFrame) return status;
+
+                // Copy + convert only (excludes waiting for the screen to change)
+                RecordBenchmark("CaptureToInput", _captureManager.LastCopyTicks);
+
+                using (Benchmark("ModelInference"))
+                {
+                    if (graph != null)
+                    {
+                        graph.Run();
+                        outputTensor = graph.Output;
+                    }
+                    else
+                    {
+                        results = _onnxModel!.Run(_reusableInputs, _outputNames, _modeloptions);
+                        outputTensor = results[0].AsTensor<float>();
+                    }
+                }
+                return CaptureStatus.NewFrame;
             }
         }
 
@@ -1491,7 +1503,7 @@ namespace Whales2.AILogic
 
         #region Screen Capture
 
-        private void SaveFrame(Bitmap frame, Prediction? DoLabel = null)
+        private void SaveFrame(Prediction? DoLabel = null)
         {
             // Only save frames if "Collect Data While Playing" is enabled
             if (!Dictionary.toggleState["Collect Data While Playing"]) return;
@@ -1502,9 +1514,10 @@ namespace Whales2.AILogic
             // Cooldown check
             if ((DateTime.Now - lastSavedTime).TotalMilliseconds < SAVE_FRAME_COOLDOWN_MS) return;
 
+            // The capture keeps a picture only while training images are being collected
+            using var frame = _captureManager.CopyLastFrame();
             try
             {
-                // Validate bitmap is still usable
                 if (frame == null) return;
 
                 // Accessing Width/Height will throw if bitmap is disposed
@@ -1571,7 +1584,6 @@ namespace Whales2.AILogic
             _captureManager.Dispose();
 
             // Clean up other resources
-            _reusableInputArray = null;
             _reusableInputs = null;
             lock (_inferenceLock)
             {

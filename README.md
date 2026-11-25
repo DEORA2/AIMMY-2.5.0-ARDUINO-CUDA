@@ -110,7 +110,7 @@ Options marked **(advanced)** only appear when **Show advanced** is switched on 
 | **Sidebar pages** | Switch between pages. **Ctrl+Tab** and **Ctrl+Shift+Tab** cycle through them. |
 | **Aim assist switch** (bottom of the sidebar) | The master switch, also shown on Home and Aim. Below it you see the model status, your aim key and your emergency stop key. |
 | **Show advanced** | Shows or hides the advanced settings on every page. |
-| **FPS** | How many frames the model is processing per second. It reads 0 while you aren't aiming. |
+| **FPS** | How many new screen frames the model checked in the last second. The model only runs when the screen has changed, so this can't go above your monitor's refresh rate (or your game's frame rate, if that's lower). It reads 0 while you aren't aiming. |
 | **Engine** | What is running the model: **CUDA** or **CPU**. When a model loads, a notice also says whether CUDA graphs (the fastest mode) are in use. |
 | **Port chip** | Shows whether your Arduino is connected. Click it to pick a COM port and connect or disconnect. |
 
@@ -329,6 +329,14 @@ dotnet build Aimmy2\Aimmy2.csproj -c Debug -p:Platform=x64
 ```
 
 The app is built to `Aimmy2\bin\x64\Debug\net8.0-windows\WhaleCumOrganizer.exe`.
+
+To make release zips, set `<Version>` in `Aimmy2\Aimmy2.csproj`, then run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\Make-Release.ps1 -OutDir C:\temp\release
+```
+
+It builds the full zip and a small app-only zip (without the ONNX Runtime / CUDA files). The in-app updater downloads the app-only zip when the installed ONNX Runtime matches, and the full one otherwise. Attach both to the GitHub release, full zip first.
 
 ## Credits
 

@@ -80,105 +80,66 @@ namespace AILogic
             return lut;
         }
 
-        // this new function reduces gc pressure as i stopped using array.copy
-        // REFERENCE: https://www.codeproject.com/Articles/617613/Fast-Pixel-Operations-in-NET-With-and-Without-unsa
-        // Takes a span so it can also fill the CUDA graph runner's page-locked input buffer directly
+        /// <summary>Converts a locked 32bpp BGRA bitmap into planar RGB floats (0-1).</summary>
         public static unsafe void BitmapToFloatArrayInPlace(Bitmap image, Span<float> result, int IMAGE_SIZE)
         {
             if (image == null) throw new ArgumentNullException(nameof(image));
 
-            int width = IMAGE_SIZE;
-            int height = IMAGE_SIZE;
-            int totalPixels = width * height;
-
-            // check if it has the right size
-            if (result.Length != 3 * totalPixels)
-                throw new ArgumentException($"result must be length {3 * totalPixels}", nameof(result));
-
-            //const float multiplier = 1f / 255f; kept for reference
-            var rect = new Rectangle(0, 0, width, height);
-
-            // Lock the bitmap
-            var bmpData = image.LockBits(rect, ImageLockMode.ReadOnly, image.PixelFormat);
+            var bmpData = image.LockBits(new Rectangle(0, 0, IMAGE_SIZE, IMAGE_SIZE), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
             try
             {
-                byte* basePtr = (byte*)bmpData.Scan0;
-                int stride = Math.Abs(bmpData.Stride); //handle negative stride, topdown vs bottomup
-
-                // array offsets for the three color channels
-                // 32gbpp format is hardcoded but 24bpp is just 3 bytes per pixel
-                const int bytesPerPixel = 4;
-                const int pixelsPerIteration = 4; // process 4 pixels at a time
-
-                int rOffset = 0; // Red channel starts at index 0
-                int gOffset = totalPixels; // Green channel starts after red
-                int bOffset = totalPixels * 2; // Blue channel starts after green
-
-                // prevent gc from moving the array while we are using it
-                fixed (float* dest = result)
-                {
-                    float* rPtr = dest + rOffset; //pointers to the start of each channel
-                    float* gPtr = dest + gOffset; //variables are arranged in RGB but its actually BGR.
-                    float* bPtr = dest + bOffset;
-
-                    // process rows in parallel (avoid creating 640 threads)
-                    Parallel.For(0, height, new ParallelOptions { MaxDegreeOfParallelism = 4 }, (y) =>
-                    {
-                        byte* row = basePtr + (long)y * stride;
-                        int rowStart = y * width;
-                        int x = 0;
-
-                        int widthLimit = width - pixelsPerIteration + 1;
-                        // optimize for 4 pixels at a time
-                        // to remove loop overhead and (cache (?))
-                        for (; x < widthLimit; x += pixelsPerIteration)
-                        {
-                            int baseIdx = rowStart + x;
-                            byte* p = row + (x * bytesPerPixel);
-
-                            // bgr(a) values
-                            // windows bitmap uses BGR order
-
-                            // process 1st pixel / pixel 0 (16bytes)
-                            bPtr[baseIdx] = _byteToFloatLut[p[0]];
-                            gPtr[baseIdx] = _byteToFloatLut[p[1]];
-                            rPtr[baseIdx] = _byteToFloatLut[p[2]];
-                            //alpha is ignored
-
-                            // pixel 1
-                            bPtr[baseIdx + 1] = _byteToFloatLut[p[4]];
-                            gPtr[baseIdx + 1] = _byteToFloatLut[p[5]];
-                            rPtr[baseIdx + 1] = _byteToFloatLut[p[6]];
-                            // pixel 2
-                            bPtr[baseIdx + 2] = _byteToFloatLut[p[8]];
-                            gPtr[baseIdx + 2] = _byteToFloatLut[p[9]];
-                            rPtr[baseIdx + 2] = _byteToFloatLut[p[10]];
-                            // pixel 3
-                            bPtr[baseIdx + 3] = _byteToFloatLut[p[12]];
-                            gPtr[baseIdx + 3] = _byteToFloatLut[p[13]];
-                            rPtr[baseIdx + 3] = _byteToFloatLut[p[14]];
-
-                            p += 16; // move pointer 16 bytes forward (4 pixels * 4 bytes per pixel)
-                        }
-
-                        // handle the rest of the pixels when width is not divisible by 4
-                        for (; x < width; x++)
-                        {
-                            int idx = rowStart + x;
-                            byte* p = row + (x * bytesPerPixel);
-
-                            // process by BGR(a) value like before
-                            bPtr[idx] = _byteToFloatLut[p[0]];
-                            gPtr[idx] = _byteToFloatLut[p[1]];
-                            rPtr[idx] = _byteToFloatLut[p[2]];
-                        }
-                    });
-                }
+                BgraToPlanarRgb((byte*)bmpData.Scan0, Math.Abs(bmpData.Stride), IMAGE_SIZE, result, maskThirdPerson: false);
             }
             finally
             {
-                //unlock the bitmap finally
                 image.UnlockBits(bmpData);
+            }
+        }
+
+        /// <summary>
+        /// Converts size x size BGRA pixels (any row stride, e.g. a mapped GPU texture) into the model's planar
+        /// RGB float input (0-1), written straight into <paramref name="result"/>: no intermediate bitmap or copy.
+        /// </summary>
+        /// <param name="maskThirdPerson">Blacks out the bottom-left quarter, where a third-person character stands.</param>
+        public static unsafe void BgraToPlanarRgb(byte* src, int srcStride, int size, Span<float> result, bool maskThirdPerson)
+        {
+            int totalPixels = size * size;
+            if (result.Length != 3 * totalPixels)
+                throw new ArgumentException($"result must be length {3 * totalPixels}", nameof(result));
+
+            int maskStartY = size - size / 2;
+            int maskWidth = size / 2;
+
+            // prevent gc from moving the array while we are using it
+            fixed (float* dest = result)
+            {
+                float* rPtr = dest;                    // planar layout: all R, then all G, then all B
+                float* gPtr = dest + totalPixels;
+                float* bPtr = dest + totalPixels * 2;
+                float[] lut = _byteToFloatLut;
+
+                // process rows in parallel (avoid creating one task per row)
+                Parallel.For(0, size, new ParallelOptions { MaxDegreeOfParallelism = 4 }, y =>
+                {
+                    byte* p = src + (long)y * srcStride;
+                    int rowStart = y * size;
+
+                    // pixels are B, G, R, A; alpha is ignored
+                    for (int x = 0; x < size; x++, p += 4)
+                    {
+                        int idx = rowStart + x;
+                        bPtr[idx] = lut[p[0]];
+                        gPtr[idx] = lut[p[1]];
+                        rPtr[idx] = lut[p[2]];
+                    }
+
+                    if (maskThirdPerson && y >= maskStartY)
+                    {
+                        new Span<float>(rPtr + rowStart, maskWidth).Clear();
+                        new Span<float>(gPtr + rowStart, maskWidth).Clear();
+                        new Span<float>(bPtr + rowStart, maskWidth).Clear();
+                    }
+                });
             }
         }
     }

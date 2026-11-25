@@ -1,6 +1,7 @@
 ﻿using Whales2.Class;
 using Other;
 using SharpGen.Runtime;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using Vortice.Direct3D;
@@ -11,6 +12,8 @@ using LogLevel = Other.LogManager.LogLevel;
 
 namespace AILogic
 {
+    internal enum CaptureStatus { NewFrame, NoNewFrame, Failed }
+
     internal class CaptureManager
     {
         #region Variables
@@ -25,11 +28,12 @@ namespace AILogic
         private IDXGIOutputDuplication? _deskDuplication;
         private ID3D11Texture2D? _stagingTex;
 
-        // Frame caching for DirectX
-        private Bitmap? _cachedFrame;
-        private Rectangle _cachedFrameBounds;
-        private DateTime _lastFrameTime = DateTime.MinValue;
-        private readonly TimeSpan _frameCacheTimeout = TimeSpan.FromMilliseconds(15); // Adjust as needed
+        // How long DirectX capture waits for the screen to change before reporting NoNewFrame.
+        // A new frame is returned as soon as it arrives, so this adds no delay.
+        private const uint NewFrameWaitMs = 10;
+
+        /// <summary>Time the last successful capture spent copying and converting pixels (Stopwatch ticks, excludes waiting).</summary>
+        public long LastCopyTicks { get; private set; }
 
 
         // Display change handling
@@ -39,11 +43,6 @@ namespace AILogic
         // Performance tracking
         private int _consecutiveFailures = 0;
         private const int MAX_CONSECUTIVE_FAILURES = 5;
-
-        // stride matching
-        private bool _lastStrideMatch = true;
-        private int _lastSrcStride = 0;
-        private int _lastDstStride = 0;
 
         #endregion
         #region Handlers
@@ -239,19 +238,20 @@ namespace AILogic
                 throw;
             }
         }
-        private Bitmap? DirectX(Rectangle detectionBox)
+        /// <summary>
+        /// DirectX desktop duplication. Waits up to <see cref="NewFrameWaitMs"/> for the screen to change; when it has,
+        /// copies the detection box to a staging texture and converts it straight from the mapped texture into the
+        /// model input. Returns NoNewFrame when the picture hasn't changed, so the model isn't run on the same image twice.
+        /// </summary>
+        private unsafe CaptureStatus DirectXInto(Rectangle detectionBox, Span<float> input, int imageSize, bool keepFrame)
         {
             int w = detectionBox.Width;
             int h = detectionBox.Height;
             bool frameAcquired = false;
             IDXGIResource? desktopResource = null;
 
-
-            Bitmap? resultBitmap = null;
-
             try
             {
-
                 lock (_displayLock)
                 {
                     if (_displayChangesPending)
@@ -268,17 +268,11 @@ namespace AILogic
                     if (_dxDevice == null || _dxDevice.ImmediateContext == null || _deskDuplication == null)
                     {
                         lock (_displayLock) { _displayChangesPending = true; }
-                        return GetCachedFrame(detectionBox);
+                        return CaptureStatus.Failed;
                     }
                 }
 
-                if (directXBitmap == null || directXBitmap.Width != w || directXBitmap.Height != h)
-                {
-                    directXBitmap?.Dispose();
-                    directXBitmap = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                }
-
-                // Check if we need new staging texture - always match requested size
+                // Staging texture always matches the requested size
                 if (_stagingTex == null ||
                     _stagingTex.Description.Width != w ||
                     _stagingTex.Description.Height != h)
@@ -298,132 +292,86 @@ namespace AILogic
                     });
                 }
 
-                int timeout = _consecutiveFailures > 0 ? 5 : 1;
-                var result = _deskDuplication!.AcquireNextFrame((uint)timeout, out var frameInfo, out desktopResource);
+                uint timeout = _consecutiveFailures > 0 ? 5u : NewFrameWaitMs;
+                var result = _deskDuplication!.AcquireNextFrame(timeout, out var frameInfo, out desktopResource);
 
                 if (result == Vortice.DXGI.ResultCode.WaitTimeout)
                 {
-                    // No new frame available - this is normal
-                    _consecutiveFailures = 0; // Reset failure counter
-                    return GetCachedFrame(detectionBox);
+                    // The screen hasn't changed since the last frame
+                    _consecutiveFailures = 0;
+                    return CaptureStatus.NoNewFrame;
                 }
                 else if (result == Vortice.DXGI.ResultCode.DeviceRemoved || result == Vortice.DXGI.ResultCode.AccessLost)
-                { // Device lost - need to reinitialize
+                {
+                    // Device lost - need to reinitialize
                     _consecutiveFailures++;
-
                     if (_consecutiveFailures >= MAX_CONSECUTIVE_FAILURES)
                         lock (_displayLock) { _displayChangesPending = true; }
-
-                    return GetCachedFrame(detectionBox);
+                    return CaptureStatus.Failed;
                 }
                 else if (result != Result.Ok)
                 {
-                    // Other error
                     _consecutiveFailures++;
-                    return GetCachedFrame(detectionBox);
+                    return CaptureStatus.Failed;
                 }
 
                 frameAcquired = true;
-                _consecutiveFailures = 0; // Reset on successful acquisition
+                _consecutiveFailures = 0;
 
+                // Only the mouse pointer moved: the picture itself is unchanged
+                if (frameInfo.LastPresentTime == 0)
+                    return CaptureStatus.NoNewFrame;
+
+                long copyStart = Stopwatch.GetTimestamp();
                 using (var screenTexture = desktopResource.QueryInterface<ID3D11Texture2D>())
                 {
-                    #region Display Bounds
-                    var displayBounds = new Rectangle(DisplayManager.ScreenLeft,
-                                                  DisplayManager.ScreenTop,
-                                                  DisplayManager.ScreenWidth,
-                                                  DisplayManager.ScreenHeight);
-
-                    // IMPORTANT: Convert absolute screen coordinates to display-relative coordinates
                     // The duplicated output starts at (0,0), not at its screen position
                     int relativeDetectionLeft = detectionBox.Left - DisplayManager.ScreenLeft;
                     int relativeDetectionTop = detectionBox.Top - DisplayManager.ScreenTop;
                     int relativeDetectionRight = relativeDetectionLeft + detectionBox.Width;
                     int relativeDetectionBottom = relativeDetectionTop + detectionBox.Height;
 
-                    // Calculate the visible portion in display-relative coordinates
+                    // The visible portion in display-relative coordinates
                     int srcLeft = Math.Max(relativeDetectionLeft, 0);
                     int srcTop = Math.Max(relativeDetectionTop, 0);
                     int srcRight = Math.Min(relativeDetectionRight, DisplayManager.ScreenWidth);
                     int srcBottom = Math.Min(relativeDetectionBottom, DisplayManager.ScreenHeight);
 
-                    // Only copy if there's a visible region
-                    if (srcRight > srcLeft && srcBottom > srcTop)
-                    {
-                        var box = new Box(srcLeft, srcTop, 0, srcRight, srcBottom, 1);
-
-                        _dxDevice.ImmediateContext.CopySubresourceRegion(
-                               _stagingTex, 0,
-                               (uint)(srcLeft - relativeDetectionLeft),
-                               (uint)(srcTop - relativeDetectionTop),
-                               0,
-                               screenTexture, 0, box);
-                    }
-                    else
+                    if (srcRight <= srcLeft || srcBottom <= srcTop)
                     {
                         LogManager.Log(LogLevel.Warning, "No visible region to copy from DirectX capture.", true, 3000);
-                        return GetCachedFrame(detectionBox);
+                        return CaptureStatus.Failed;
                     }
 
-                    #endregion
-
-                    #region Bitmap
-                    var map = _dxDevice.ImmediateContext.Map(_stagingTex, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
-                    var boundsRect = new Rectangle(0, 0, w, h);
-                    BitmapData? mapDest = directXBitmap.LockBits(boundsRect, ImageLockMode.WriteOnly, directXBitmap.PixelFormat);
-
-                    try
-                    {
-                        unsafe
-                        {
-                            byte* src = (byte*)map.DataPointer;
-                            byte* dst = (byte*)mapDest.Scan0;
-                            int srcStride = (int)map.RowPitch;
-                            int dstStride = mapDest.Stride;
-
-                            int copyBytesPerRow = Math.Min(srcStride, dstStride);
-                            for (int y = 0; y < h; y++)
-                            {
-                                Buffer.MemoryCopy(src, dst, dstStride, copyBytesPerRow);
-                                src += srcStride;
-                                dst += dstStride;
-                            }
-
-                            if (Dictionary.toggleState["Third Person Support"]) // a mask basically
-                            {
-                                int width = w / 2;
-                                int height = h / 2;
-                                int startY = h - height;
-
-                                byte* basePtr = (byte*)mapDest.Scan0;
-                                for (int y = startY; y < h; y++)
-                                {
-                                    byte* rowPtr = basePtr + (y * dstStride);
-                                    for (int x = 0; x < width; x++)
-                                    {
-                                        int pixelOffset = x * 4;
-                                        // Pixel layout: [B, G, R, A]
-                                        rowPtr[pixelOffset + 0] = 0;   // Blue -> 0
-                                        rowPtr[pixelOffset + 1] = 0;   // Green -> 0
-                                        rowPtr[pixelOffset + 2] = 0;   // Red -> 0
-                                        rowPtr[pixelOffset + 3] = 255; // Alpha -> 255 (opaque)
-                                    }
-                                }
-                            }
-                        }
-                        #endregion
-                    }
-                    finally
-                    {
-                        directXBitmap.UnlockBits(mapDest);
-                        _dxDevice.ImmediateContext.Unmap(_stagingTex, 0);
-                    }
-
-
-                    resultBitmap = (Bitmap)directXBitmap.Clone();
-                    UpdateCache(resultBitmap, detectionBox);
-                    return resultBitmap;
+                    var box = new Box(srcLeft, srcTop, 0, srcRight, srcBottom, 1);
+                    _dxDevice.ImmediateContext.CopySubresourceRegion(
+                        _stagingTex, 0,
+                        (uint)(srcLeft - relativeDetectionLeft),
+                        (uint)(srcTop - relativeDetectionTop),
+                        0,
+                        screenTexture, 0, box);
                 }
+
+                var map = _dxDevice.ImmediateContext.Map(_stagingTex, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+                try
+                {
+                    byte* src = (byte*)map.DataPointer;
+                    int srcStride = (int)map.RowPitch;
+                    bool mask = Dictionary.toggleState["Third Person Support"];
+
+                    MathUtil.BgraToPlanarRgb(src, srcStride, imageSize, input, mask);
+
+                    // A picture is only kept when training images are being saved
+                    if (keepFrame)
+                        CopyToBitmap(src, srcStride, w, h, mask);
+                }
+                finally
+                {
+                    _dxDevice.ImmediateContext.Unmap(_stagingTex, 0);
+                }
+
+                LastCopyTicks = Stopwatch.GetTimestamp() - copyStart;
+                return CaptureStatus.NewFrame;
             }
             catch (Exception e)
             {
@@ -432,7 +380,7 @@ namespace AILogic
                 if (++_consecutiveFailures >= MAX_CONSECUTIVE_FAILURES)
                     lock (_displayLock) { _displayChangesPending = true; }
 
-                return GetCachedFrame(detectionBox);
+                return CaptureStatus.Failed;
             }
             finally
             {
@@ -440,46 +388,49 @@ namespace AILogic
                 try
                 {
                     if (frameAcquired && _deskDuplication != null)
-                    {
                         _deskDuplication.ReleaseFrame();
-                    }
                 }
                 catch { }
-
             }
         }
-        #region Frame Caching
 
-
-        private void UpdateCache(Bitmap frame, Rectangle bounds)
+        /// <summary>Copies the mapped pixels into <see cref="directXBitmap"/>, for saving training images.</summary>
+        private unsafe void CopyToBitmap(byte* src, int srcStride, int w, int h, bool maskThirdPerson)
         {
-            if (_cachedFrame == null ||
-                !_cachedFrameBounds.Equals(bounds) ||
-                DateTime.Now - _lastFrameTime > _frameCacheTimeout)
+            if (directXBitmap == null || directXBitmap.Width != w || directXBitmap.Height != h)
             {
-                _cachedFrame?.Dispose();
-                _cachedFrame = (Bitmap)frame.Clone();
-                _cachedFrameBounds = bounds;
+                directXBitmap?.Dispose();
+                directXBitmap = new Bitmap(w, h, PixelFormat.Format32bppArgb);
             }
-            _lastFrameTime = DateTime.Now;
-        }
 
-
-        private Bitmap? GetCachedFrame(Rectangle detectionBox)
-        {
-            if (_cachedFrame != null &&
-                _cachedFrameBounds.Equals(detectionBox) &&
-                DateTime.Now - _lastFrameTime <= _frameCacheTimeout)
+            var data = directXBitmap.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+            try
             {
-                return (Bitmap)_cachedFrame.Clone();
+                byte* dst = (byte*)data.Scan0;
+                int rowBytes = Math.Min(srcStride, data.Stride);
+                for (int y = 0; y < h; y++)
+                    Buffer.MemoryCopy(src + (long)y * srcStride, dst + (long)y * data.Stride, data.Stride, rowBytes);
+
+                if (maskThirdPerson)
+                {
+                    // Same mask the model sees: the bottom-left quarter (where your own character is) is black
+                    for (int y = h - h / 2; y < h; y++)
+                    {
+                        uint* row = (uint*)(dst + (long)y * data.Stride);
+                        for (int x = 0; x < w / 2; x++)
+                            row[x] = 0xFF000000;
+                    }
+                }
             }
-            return null;
+            finally
+            {
+                directXBitmap.UnlockBits(data);
+            }
         }
-        #endregion
         #endregion
 
         #region GDI
-        public Bitmap GDIScreen(Rectangle detectionBox)
+        private unsafe CaptureStatus GdiInto(Rectangle detectionBox, Span<float> input, int imageSize)
         {
             if (_dxDevice != null || _deskDuplication != null)
             {
@@ -494,6 +445,7 @@ namespace AILogic
 
             try
             {
+                long copyStart = Stopwatch.GetTimestamp();
                 using (var g = Graphics.FromImage(screenCaptureBitmap))
                 {
                     g.CopyFromScreen(
@@ -515,21 +467,41 @@ namespace AILogic
                     }
                 }
 
-                // Clone the bitmap to avoid race conditions with Sticky Aim / SaveFrame
-                // The source bitmap is reused, so returning it directly can cause crashes
-                // if the caller is still using it when the next frame capture starts
-                return (Bitmap)screenCaptureBitmap.Clone();
+                // Convert straight from the captured bitmap; it is reused, never cloned
+                var rect = new Rectangle(0, 0, screenCaptureBitmap.Width, screenCaptureBitmap.Height);
+                var data = screenCaptureBitmap.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+                try
+                {
+                    MathUtil.BgraToPlanarRgb((byte*)data.Scan0, data.Stride, imageSize, input, maskThirdPerson: false);
+                }
+                finally
+                {
+                    screenCaptureBitmap.UnlockBits(data);
+                }
+
+                // GDI can't tell whether the screen changed, so every capture counts as new
+                LastCopyTicks = Stopwatch.GetTimestamp() - copyStart;
+                return CaptureStatus.NewFrame;
             }
             catch (Exception ex)
             {
                 LogManager.Log(LogLevel.Error, $"GDI+ screen capture failed: {ex.Message}");
-                throw;
+                return CaptureStatus.Failed;
             }
         }
         #endregion
 
-        public Bitmap? ScreenGrab(Rectangle detectionBox)
+        /// <summary>
+        /// Captures the detection box straight into the model input (planar RGB, 0-1).
+        /// NewFrame: the input holds a new picture. NoNewFrame: the screen hasn't changed, the input is untouched.
+        /// Failed: nothing was captured (device lost, display changing...).
+        /// </summary>
+        /// <param name="keepFrame">Also keep the picture so <see cref="CopyLastFrame"/> can return it (for training images).</param>
+        public CaptureStatus CaptureInto(Rectangle detectionBox, Span<float> input, int imageSize, bool keepFrame)
         {
+            if (detectionBox.Width != imageSize || detectionBox.Height != imageSize || input.Length != 3 * imageSize * imageSize)
+                throw new ArgumentException("The detection box and input buffer must match the model's image size.");
+
             string selectedMethod = Dictionary.dropdownState["Screen Capture Method"];
 
             // If DirectX failed permanently, force GDI+
@@ -543,7 +515,6 @@ namespace AILogic
             // Handle method switch
             if (selectedMethod != _currentCaptureMethod)
             {
-                // Dispose bitmap when switching methods
                 screenCaptureBitmap?.Dispose();
                 screenCaptureBitmap = null;
 
@@ -551,26 +522,30 @@ namespace AILogic
                 directXBitmap = null;
 
                 _currentCaptureMethod = selectedMethod;
-                _notificationShown = false; // Reset notification flag on method change
+                _notificationShown = false;
 
-                // Dispose DX resources when switching to GDI
                 if (selectedMethod == "GDI+")
-                {
                     DisposeDxgiResources();
-                }
                 else
-                {
                     InitializeDxgiDuplication();
-                }
             }
 
-            if (selectedMethod == "DirectX" && !_directXFailedPermanently)
+            return selectedMethod == "DirectX" && !_directXFailedPermanently
+                ? DirectXInto(detectionBox, input, imageSize, keepFrame)
+                : GdiInto(detectionBox, input, imageSize);
+        }
+
+        /// <summary>A copy of the last captured picture (DirectX keeps one only while keepFrame is set), or null.</summary>
+        public Bitmap? CopyLastFrame()
+        {
+            var source = _currentCaptureMethod == "GDI+" ? screenCaptureBitmap : directXBitmap;
+            try
             {
-                return DirectX(detectionBox);
+                return source == null ? null : (Bitmap)source.Clone();
             }
-            else
+            catch
             {
-                return GDIScreen(detectionBox);
+                return null;
             }
         }
 
@@ -595,13 +570,12 @@ namespace AILogic
                     _deskDuplication?.Dispose();
                     _stagingTex?.Dispose();
                     _dxDevice?.Dispose();
-                    _cachedFrame?.Dispose();
                     directXBitmap?.Dispose();
 
                     _deskDuplication = null;
                     _stagingTex = null;
                     _dxDevice = null;
-                    _cachedFrame = null;
+                    directXBitmap = null;
 
                     // Small delay to ensure resources are fully released
                     //System.Threading.Thread.Sleep(50);

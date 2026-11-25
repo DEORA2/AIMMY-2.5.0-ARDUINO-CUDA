@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Windows;
 
 namespace Other
@@ -11,10 +12,67 @@ namespace Other
     /// Checks this fork's GitHub releases for a newer version and, if the user agrees, downloads the zip,
     /// copies it over the app folder (the bin folder with models and settings is not in the zip, so it is kept)
     /// and restarts.
+    ///
+    /// Each release has two zips: the full one, and a small app-only one named "...-app-only-ort{version}.zip"
+    /// that leaves out the ONNX Runtime / CUDA files (over 300 MB, and they rarely change). The app-only zip is
+    /// used when the installed ONNX Runtime is exactly the version in its name; otherwise the full zip.
     /// </summary>
     internal class UpdateManager : IDisposable
     {
         private readonly HttpClient client = new() { Timeout = TimeSpan.FromMinutes(30) };
+
+        private static readonly Regex AppOnlyAssetName =
+            new(@"-app-only-ort(?<ort>\d+(?:\.\d+)+)\.zip$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        /// <summary>
+        /// The installed ONNX Runtime as "major.minor.build.revision" (e.g. 1.23.20251021.3), from the native DLL
+        /// next to the app; null if it can't be read.
+        /// </summary>
+        internal static string? InstalledOrtVersion(string appDir)
+        {
+            try
+            {
+                string dll = Path.Combine(appDir, "runtimes", "win-x64", "native", "onnxruntime.dll");
+                if (!File.Exists(dll)) return null;
+                return NormalizeOrtVersion(FileVersionInfo.GetVersionInfo(dll).FileVersion);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>Keeps the leading numeric parts: "1.23.20251021.3.a83fc4d" becomes "1.23.20251021.3".</summary>
+        internal static string? NormalizeOrtVersion(string? version)
+        {
+            if (string.IsNullOrWhiteSpace(version)) return null;
+            var match = Regex.Match(version, @"^\d+(?:\.\d+)*");
+            return match.Success ? match.Value : null;
+        }
+
+        /// <summary>
+        /// The app-only zip when it was built for the installed ONNX Runtime, otherwise the full zip.
+        /// </summary>
+        internal static ReleaseAsset? ChooseAsset(IReadOnlyList<ReleaseAsset> assets, string? installedOrtVersion)
+        {
+            if (installedOrtVersion != null)
+            {
+                foreach (var asset in assets)
+                {
+                    var match = AppOnlyAssetName.Match(asset.Name);
+                    if (match.Success && match.Groups["ort"].Value == installedOrtVersion)
+                        return asset;
+                }
+            }
+
+            return assets.FirstOrDefault(a => a.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) && !AppOnlyAssetName.IsMatch(a.Name));
+        }
+
+        private static string FormatSize(long bytes)
+        {
+            double mb = bytes / (1024.0 * 1024.0);
+            return mb < 10 ? $"{mb:0.0} MB" : $"{mb:0} MB";
+        }
 
         private static int CompareVersions(string currentVersion, string latestVersion)
         {
@@ -33,12 +91,12 @@ namespace Other
         /// </summary>
         public async Task CheckForUpdate(string currentVersion, bool quiet = false)
         {
-            string latestVersion, zipUrl;
-            long sizeBytes;
+            string latestVersion;
+            List<ReleaseAsset> assets;
             try
             {
                 using var githubManager = new GithubManager();
-                (latestVersion, zipUrl, sizeBytes) = await githubManager.GetLatestReleaseZip(AppInfo.RepoOwner, AppInfo.RepoName);
+                (latestVersion, assets) = await githubManager.GetLatestRelease(AppInfo.RepoOwner, AppInfo.RepoName);
             }
             catch (Exception ex)
             {
@@ -58,9 +116,17 @@ namespace Other
                 return;
             }
 
+            string appDir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
+            var download = ChooseAsset(assets, InstalledOrtVersion(appDir));
+            if (download == null)
+            {
+                LogManager.Log(LogManager.LogLevel.Error, $"Release {latestVersion} has no download attached.", !quiet);
+                return;
+            }
+
             var answer = MessageBox.Show(
                 $"Whales {latestVersion} is available (you have v{currentVersion.TrimStart('v', 'V')}).\n\n" +
-                $"Download it ({sizeBytes / (1024 * 1024)} MB) and install it now? Whales will close and restart.\n" +
+                $"Download it ({FormatSize(download.Size)}) and install it now? Whales will close and restart.\n" +
                 "Your models and settings are kept.\n\nChoose No to see what's new on GitHub instead." +
                 (quiet ? "\n\n(You can turn off this check in Settings.)" : ""),
                 "Update available", MessageBoxButton.YesNoCancel, MessageBoxImage.Information);
@@ -75,7 +141,7 @@ namespace Other
 
             try
             {
-                await DoUpdate(zipUrl);
+                await DoUpdate(download.Url);
             }
             catch (Exception ex)
             {

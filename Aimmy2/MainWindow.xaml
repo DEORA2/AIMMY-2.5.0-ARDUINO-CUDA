@@ -199,7 +199,7 @@
                                         <Border x:Name="AdvancedSwitchHost" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
-                                <Border x:Name="FpsChip" Style="{StaticResource UI.Chip}" ToolTip="Detection frames per second (0 while idle)">
+                                <Border x:Name="FpsChip" Style="{StaticResource UI.Chip}" ToolTip="New screen frames the model checked per second. It can't go above your monitor's refresh rate (0 while idle)">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Style="{StaticResource UI.ChipLabel}" Text="FPS" />
                                         <TextBlock x:Name="FpsText" Style="{StaticResource UI.ChipValue}" MinWidth="22" Text="0" />
