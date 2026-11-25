@@ -8,7 +8,10 @@
       files (over 300 MB, unchanged unless the ONNX Runtime package is updated). The in-app updater downloads this
       small zip when the installed ONNX Runtime matches the version in its name, and the full zip otherwise.
 
-    Upload the full zip first, so older updaters (v2.5.6 and v2.5.7 take the first .zip) get the full one.
+    Attach both zips to the release. GitHub lists the app-only zip first, and the v2.5.6 / v2.5.7 updaters take
+    the first .zip they see, so they install the app-only zip. That's fine while the ONNX Runtime is unchanged
+    (they have 1.23.20251021.3). If a release updates the ONNX Runtime package, attach only the full zip for a
+    while, until users are on v2.5.8 or later (their updater checks the version in the name).
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File tools\Make-Release.ps1 -OutDir C:\temp\release

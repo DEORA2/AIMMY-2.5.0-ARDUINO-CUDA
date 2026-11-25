@@ -336,7 +336,7 @@ To make release zips, set `<Version>` in `Aimmy2\Aimmy2.csproj`, then run:
 powershell -ExecutionPolicy Bypass -File tools\Make-Release.ps1 -OutDir C:\temp\release
 ```
 
-It builds the full zip and a small app-only zip (without the ONNX Runtime / CUDA files). The in-app updater downloads the app-only zip when the installed ONNX Runtime matches, and the full one otherwise. Attach both to the GitHub release, full zip first.
+It builds the full zip and a small app-only zip (without the ONNX Runtime / CUDA files). The in-app updater downloads the app-only zip when the installed ONNX Runtime matches, and the full one otherwise. Attach both to the GitHub release (see the notes at the top of the script if the ONNX Runtime version changes).
 
 ## Credits
 
