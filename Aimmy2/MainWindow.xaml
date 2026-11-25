@@ -193,19 +193,19 @@
                             </StackPanel>
 
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                <Border Style="{StaticResource UI.Chip}" Padding="12,0,6,0" ToolTip="Show settings most people never need to change">
+                                <Border x:Name="AdvancedChip" Style="{StaticResource UI.Chip}" Padding="12,0,6,0" ToolTip="Show settings most people never need to change">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Style="{StaticResource UI.ChipLabel}" Foreground="{StaticResource UI.TextSoft}" FontSize="12" Text="Show advanced" Margin="0,0,10,0" />
                                         <Border x:Name="AdvancedSwitchHost" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
-                                <Border Style="{StaticResource UI.Chip}" ToolTip="Detection frames per second (0 while idle)">
+                                <Border x:Name="FpsChip" Style="{StaticResource UI.Chip}" ToolTip="Detection frames per second (0 while idle)">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Style="{StaticResource UI.ChipLabel}" Text="FPS" />
                                         <TextBlock x:Name="FpsText" Style="{StaticResource UI.ChipValue}" MinWidth="22" Text="0" />
                                     </StackPanel>
                                 </Border>
-                                <Border Style="{StaticResource UI.Chip}" ToolTip="Engine running the loaded model">
+                                <Border x:Name="EngineChip" Style="{StaticResource UI.Chip}" ToolTip="Engine running the loaded model">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Style="{StaticResource UI.ChipLabel}" Text="Engine" />
                                         <TextBlock x:Name="ProviderText" Style="{StaticResource UI.ChipValue}" Text="N/A" />

@@ -44,6 +44,31 @@ namespace Whales2
             ["Device"] = "Mouse hardware and screen capture",
             ["Settings"] = "Hotkeys, appearance and app options"
         };
+        // Plainer wording used by the Simple layout
+        private static readonly Dictionary<string, string> SimplePageSubtitles = new()
+        {
+            ["Home"] = "Start here: three steps and you're aiming",
+            ["Aim"] = "Turn aim on, pick your aim key and how fast it moves",
+            ["Visuals"] = "What Whales draws on your screen",
+            ["Models"] = "Pick the AI model that finds players",
+            ["Device"] = "Connect the Arduino or RP2350 that moves your mouse",
+            ["Settings"] = "Keys, colour and app options"
+        };
+
+        // Rows (by setting key) that the Simple layout hides: fine-tuning most people never touch
+        private static readonly HashSet<string> SimpleHiddenKeys = new()
+        {
+            "EMA Smoothening", "Movement Preview",
+            "Prediction Method", "Kalman Lead Time", "WiseTheFox Lead Time", "Shalloe Lead Multiplier",
+            "Dynamic FOV", "Dynamic FOV Keybind", "Dynamic FOV Size", "Tracer Position",
+            "Screen Capture Method", "StreamGuard", "Refresh displays",
+            "Second Aim Keybind", "Model Switch Keybind"
+        };
+
+        // Two-column page bodies; the Simple layout stacks them into one column
+        private readonly List<(Grid Grid, StackPanel Left, StackPanel Right)> _columnGrids = new();
+        private readonly List<FrameworkElement> _pageBodies = new();
+        private const double SimpleLayoutWidth = 760;
 
         private string _currentPage = "";
         private bool _pagesBuilt;
@@ -77,7 +102,10 @@ namespace Whales2
         private static bool IsOn(string key) =>
             Dictionary.toggleState.TryGetValue(key, out var value) && value is bool on && on;
 
-        private static bool ShowAdvanced => IsOn("Show Advanced Settings");
+        private static bool SimpleLayout => IsOn("Simple Layout");
+
+        // The Simple layout never shows advanced rows
+        private static bool ShowAdvanced => IsOn("Show Advanced Settings") && !SimpleLayout;
 
         private T Res<T>(string key) => (T)FindResource(key);
 
@@ -167,7 +195,7 @@ namespace Whales2
             ContentArea.Children.Add(page);
 
             PageTitle.Text = name;
-            PageSubtitle.Text = PageSubtitles.GetValueOrDefault(name, "");
+            PageSubtitle.Text = (SimpleLayout ? SimplePageSubtitles : PageSubtitles).GetValueOrDefault(name, "");
 
             foreach (var nav in NavPanel.Children.OfType<RadioButton>())
             {
@@ -193,6 +221,8 @@ namespace Whales2
         /// <summary>Shows or hides every conditional row (advanced rows, sub-options of a switch, ...).</summary>
         internal void RefreshConditionalRows()
         {
+            ApplyLayoutMode();
+
             foreach (var (element, isVisible) in _conditionalRows)
             {
                 bool visible;
@@ -204,6 +234,55 @@ namespace Whales2
             // Toggles, config loads and the advanced switch all pass through here
             UpdateVisualPreview();
             SimulateMovementPath();
+        }
+
+        /// <summary>Applies the Simple or Full layout: column count, page width, header chips and page subtitle.</summary>
+        private void ApplyLayoutMode()
+        {
+            bool simple = SimpleLayout;
+
+            foreach (var (grid, left, right) in _columnGrids)
+            {
+                grid.ColumnDefinitions[1].Width = simple ? new GridLength(0) : new GridLength(16);
+                grid.ColumnDefinitions[2].Width = simple ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+                Grid.SetColumn(right, simple ? 0 : 2);
+                Grid.SetRow(right, simple ? 1 : 0);
+            }
+
+            foreach (var body in _pageBodies)
+                body.MaxWidth = simple ? SimpleLayoutWidth : double.PositiveInfinity;
+
+            var chipVisibility = simple ? Visibility.Collapsed : Visibility.Visible;
+            AdvancedChip.Visibility = chipVisibility;
+            FpsChip.Visibility = chipVisibility;
+            EngineChip.Visibility = chipVisibility;
+
+            if (!string.IsNullOrEmpty(_currentPage))
+                PageSubtitle.Text = (simple ? SimplePageSubtitles : PageSubtitles).GetValueOrDefault(_currentPage, "");
+
+            // After switching layouts, start every page from the top
+            if (_appliedSimpleLayout != null && _appliedSimpleLayout != simple)
+            {
+                foreach (var page in _pages.Values.OfType<ScrollViewer>())
+                    page.ScrollToTop();
+            }
+            _appliedSimpleLayout = simple;
+        }
+
+        private bool? _appliedSimpleLayout;
+
+        /// <summary>Switches between the Simple and Full layout through its Settings row, so both stay in sync.</summary>
+        private void ToggleSimpleLayout()
+        {
+            if (toggleInstances.TryGetValue("Simple Layout", out var toggle))
+                toggle.Reader.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        }
+
+        /// <summary>Hides an element (a whole card, a row) while the Simple layout is on.</summary>
+        private T HideInSimple<T>(T element) where T : FrameworkElement
+        {
+            _conditionalRows.Add((element, () => !SimpleLayout));
+            return element;
         }
 
         private void UpdateKeyHints()
@@ -230,27 +309,37 @@ namespace Whales2
 
         #region Layout helpers
 
-        private ScrollViewer MakeScrollPage(UIElement content) => new()
+        private ScrollViewer MakeScrollPage(UIElement content)
         {
-            Content = content,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            PanningMode = PanningMode.VerticalOnly,
-            Focusable = false
-        };
+            // Page bodies are narrowed (and centred) in the Simple layout
+            if (content is FrameworkElement body)
+                _pageBodies.Add(body);
 
-        private static Grid MakeColumns(out StackPanel left, out StackPanel right)
+            return new ScrollViewer
+            {
+                Content = content,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                PanningMode = PanningMode.VerticalOnly,
+                Focusable = false
+            };
+        }
+
+        private Grid MakeColumns(out StackPanel left, out StackPanel right)
         {
             var grid = new Grid();
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
             left = new StackPanel();
             right = new StackPanel();
             Grid.SetColumn(right, 2);
             grid.Children.Add(left);
             grid.Children.Add(right);
+            _columnGrids.Add((grid, left, right));
             return grid;
         }
 
@@ -302,7 +391,7 @@ namespace Whales2
             {
                 var toggle = _w.CreateToggle(key, label, desc);
                 configure?.Invoke(toggle);
-                return Add(toggle, when);
+                return Add(toggle, when, key);
             }
 
             public CardBuilder AddSlider(string key, string label, string unit, double frequency, double step,
@@ -310,7 +399,7 @@ namespace Whales2
             {
                 var slider = _w.CreateSlider(key, label, unit, frequency, step, min, max, desc);
                 configure?.Invoke(slider);
-                return Add(slider, when);
+                return Add(slider, when, key);
             }
 
             public CardBuilder AddDropdown(string key, string label, string? desc, IEnumerable<string> items,
@@ -318,27 +407,35 @@ namespace Whales2
             {
                 var dropdown = _w.CreateDropdown(key, label, desc, items);
                 configure?.Invoke(dropdown);
-                return Add(dropdown, when);
+                return Add(dropdown, when, key);
             }
 
             public CardBuilder AddKey(string key, string label, string? desc = null, Func<bool>? when = null) =>
-                Add(_w.CreateKeyChanger(key, label, desc), when);
+                Add(_w.CreateKeyChanger(key, label, desc), when, key);
 
             public CardBuilder AddColor(string key, string label, string? desc, Action<Color> apply, Func<bool>? when = null) =>
-                Add(_w.CreateColorChanger(key, label, desc, apply), when);
+                Add(_w.CreateColorChanger(key, label, desc, apply), when, key);
 
             public CardBuilder AddAction(string label, string? desc, Action onClick, Func<bool>? when = null)
             {
                 var button = new APButton(label, desc);
                 button.Reader.Click += (_, _) => onClick();
-                return Add(button, when);
+                return Add(button, when, label);
             }
 
-            public CardBuilder AddElement(FrameworkElement element, Func<bool>? when = null) => Add(element, when);
+            /// <param name="simpleKey">Name to look up in SimpleHiddenKeys, for elements the Simple layout hides.</param>
+            public CardBuilder AddElement(FrameworkElement element, Func<bool>? when = null, string? simpleKey = null) =>
+                Add(element, when, simpleKey);
 
-            private CardBuilder Add(FrameworkElement element, Func<bool>? when)
+            private CardBuilder Add(FrameworkElement element, Func<bool>? when, string? key = null)
             {
                 Body.Children.Add(element);
+
+                if (key != null && SimpleHiddenKeys.Contains(key))
+                {
+                    var inner = when;
+                    when = () => !SimpleLayout && (inner?.Invoke() ?? true);
+                }
                 if (when != null)
                     _w._conditionalRows.Add((element, when));
                 return this;
@@ -628,7 +725,7 @@ namespace Whales2
             AddTile(tiles, 0, "Detection speed", out _homeFps, out _, "frames per second");
             AddTile(tiles, 2, "Engine", out _homeEngine, out _, "runs the model");
             AddTile(tiles, 4, "Mouse device", out _homeDevice, out _homeDeviceSub, "");
-            root.Children.Add(tiles);
+            root.Children.Add(HideInSimple(tiles));
 
             var columns = MakeColumns(out var left, out var right);
 
@@ -663,7 +760,35 @@ namespace Whales2
             right.Children.Add(tune.Root);
 
             root.Children.Add(columns);
+
+            // One-click switch between the layouts, worded for whichever one is showing
+            var toSimple = MakeLayoutHint("Too many options? The simple layout shows only the main ones, in one column.", "Switch to simple layout");
+            _conditionalRows.Add((toSimple, () => !SimpleLayout));
+            root.Children.Add(toSimple);
+            var toFull = MakeLayoutHint("Want every option? The full layout shows all settings.", "Show all options");
+            _conditionalRows.Add((toFull, () => SimpleLayout));
+            root.Children.Add(toFull);
+
             return MakeScrollPage(root);
+        }
+
+        private FrameworkElement MakeLayoutHint(string text, string buttonText)
+        {
+            var grid = new Grid { Margin = new Thickness(6, 2, 6, 14) };
+            grid.ColumnDefinitions.Add(new ColumnDefinition());
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var label = MakeSmall(text, 12.5);
+            label.VerticalAlignment = VerticalAlignment.Center;
+            label.TextWrapping = TextWrapping.Wrap;
+            label.Margin = new Thickness(0, 0, 12, 0);
+            grid.Children.Add(label);
+
+            var button = MakeButton(buttonText, ToggleSimpleLayout);
+            button.Height = 30;
+            Grid.SetColumn(button, 1);
+            grid.Children.Add(button);
+            return grid;
         }
 
         private void AddTile(Grid host, int column, string label, out TextBlock value, out TextBlock sub, string subText)
@@ -902,13 +1027,13 @@ namespace Whales2
                     }, when: () => IsOn("EMA Smoothening"))
                 .AddSlider("Mouse Jitter", "Jitter", "px", 1, 1, 0, 15,
                     "Random small movements so aim looks more human", s => uiManager.S_MouseJitter = s, when: advanced)
-                .AddDropdown("Movement Path", "Movement path", "The route to a new target. Once there, every path tracks the same way. The preview below plays it.",
+                .AddDropdown("Movement Path", "Movement path", "The route to a new target. Once there, every path tracks the same way.",
                     MovementPaths, d =>
                     {
                         uiManager.D_MovementPath = d;
                         d.DropdownBox.SelectionChanged += (_, _) => SimulateMovementPath();
                     })
-                .AddElement(BuildMovementPreview());
+                .AddElement(BuildMovementPreview(), simpleKey: "Movement Preview");
             left.Children.Add(movement.Root);
 
             // Replay the movement preview whenever a setting it depends on changes
@@ -1364,7 +1489,7 @@ namespace Whales2
                 .AddToggle("Enable Model Switch Keybind", "Model switch key", "Press the key below to load the next model",
                     t => uiManager.T_EnableModelSwitchKeybind = t)
                 .AddKey("Model Switch Keybind", "Switch key", null, when: () => IsOn("Enable Model Switch Keybind"));
-            side.Children.Add(switching.Root);
+            side.Children.Add(HideInSimple(switching.Root));
 
             var sideScroll = MakeScrollPage(side);
             Grid.SetColumn(sideScroll, 2);
@@ -1649,6 +1774,11 @@ namespace Whales2
             var root = new StackPanel { Margin = PageMargin };
             var columns = MakeColumns(out var left, out var right);
 
+            var layout = new CardBuilder(this, "Layout", "How much is shown on each page")
+                .AddToggle("Simple Layout", "Simple layout",
+                    "Shows only the main options, in one column, with a quieter header. Switch off to see every option");
+            left.Children.Add(layout.Root);
+
             var hotkeys = new CardBuilder(this, "Hotkeys", "Click a key, then press the new key or mouse button")
                 .AddKey("Aim Keybind", "Aim", "Hold to aim")
                 .AddKey("Second Aim Keybind", "Second aim", "Another key that also aims")
@@ -1662,7 +1792,7 @@ namespace Whales2
                     t => uiManager.T_CollectDataWhilePlaying = t)
                 .AddToggle("Auto Label Data", "Auto-label images", "Write the detection boxes next to each saved image",
                     t => uiManager.T_AutoLabelData = t, when: () => IsOn("Collect Data While Playing"));
-            left.Children.Add(training.Root);
+            left.Children.Add(HideInSimple(training.Root));
 
             // Theme colour wheel (existing control)
             uiManager.ThemeColorWheel = new AColorWheel { Margin = new Thickness(8, 0, 8, 4) };

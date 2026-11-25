@@ -280,6 +280,7 @@ The **Preview** card shows your FOV, boxes and tracers at real proportions and u
 
 | Option | What it does |
 |---|---|
+| **Simple layout** | Shows only the main options on each page, in one centred column, with a quieter header and plainer page descriptions. Hidden in this layout: smoothing, the movement preview, prediction method and lead, Dynamic FOV, tracer start, overlay styling, capture method, Hide from recordings, the extra hotkeys, model switching and training data. Your values for hidden options still apply. Home has a one-click button to switch either way. |
 | **Hotkeys** | All keys in one place: **Aim**, **Second aim**, **Emergency stop** (default Delete: turns aim assist off instantly, press again to turn it back on), **Dynamic FOV** and **Next model**. Click a key, then press the new key or mouse button. |
 | **Save training images** | Saves screenshots of detections while you play, to `bin\images`, for training your own models. |
 | **Auto-label images** | Also writes the detection boxes as YOLO label files to `bin\labels`. |

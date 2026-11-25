@@ -77,7 +77,9 @@ namespace Whales2.Class
             { "X Axis Percentage Adjustment", false },
             { "Y Axis Percentage Adjustment", false },
             // New UI: shows the rarely-needed rows marked as advanced
-            { "Show Advanced Settings", false }
+            { "Show Advanced Settings", false },
+            // Simple layout: one column, only the main options, quieter header
+            { "Simple Layout", false }
         };
 
         public static Dictionary<string, dynamic> minimizeState = new()
