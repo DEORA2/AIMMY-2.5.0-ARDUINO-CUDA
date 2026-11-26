@@ -134,7 +134,8 @@ namespace Whales2.MouseMovementLibraries.HidDeviceSupport
         /// Discover and connect to the RP2350 HID device.
         /// Returns true on success.
         /// </summary>
-        public bool Connect()
+        /// <param name="showNotices">Show connected / failed notices. Startup passes false unless this device is selected.</param>
+        public bool Connect(bool showNotices = true)
         {
             if (_isConnected) return true;
 
@@ -143,7 +144,7 @@ namespace Whales2.MouseMovementLibraries.HidDeviceSupport
                 string? path = FindDevicePath(VENDOR_ID, PRODUCT_ID);
                 if (path == null)
                 {
-                    new NoticeBar($"RP2350 HID Device not found. Ensure it is plugged in", 5000).Show();
+                    if (showNotices) new NoticeBar($"RP2350 HID Device not found. Ensure it is plugged in", 5000).Show();
                     return false;
                 }
 
@@ -158,21 +159,21 @@ namespace Whales2.MouseMovementLibraries.HidDeviceSupport
 
                 if (_deviceHandle.IsInvalid)
                 {
-                    new NoticeBar($"Failed to open RP2350 HID Device (error {Marshal.GetLastWin32Error()}).", 5000).Show();
+                    if (showNotices) new NoticeBar($"Failed to open RP2350 HID Device (error {Marshal.GetLastWin32Error()}).", 5000).Show();
                     return false;
                 }
 
                 _deviceStream = new FileStream(_deviceHandle, FileAccess.ReadWrite, 8, false);
                 _isConnected = true;
 
-                new NoticeBar($"RP2350 HID Device connected successfully.", 5000).Show();
+                if (showNotices) new NoticeBar($"RP2350 HID Device connected successfully.", 5000).Show();
                 return true;
 
 
             }
             catch (Exception ex)
             {
-                new NoticeBar($"RP2350 HID Device connection failed: {ex.Message}", 5000).Show();
+                if (showNotices) new NoticeBar($"RP2350 HID Device connection failed: {ex.Message}", 5000).Show();
                 return false;
             }
         }

@@ -42,7 +42,8 @@ namespace Whales2
             ["Visuals"] = "What gets drawn on your screen",
             ["Models"] = "Detection models, configs and detection settings",
             ["Device"] = "Mouse hardware and screen capture",
-            ["Settings"] = "Hotkeys, appearance and app options"
+            ["Settings"] = "Hotkeys, appearance and app options",
+            ["Sketch builder"] = "Record your mouse, then generate a sketch for your Arduino"
         };
         // Plainer wording used by the Simple layout
         private static readonly Dictionary<string, string> SimplePageSubtitles = new()
@@ -51,8 +52,9 @@ namespace Whales2
             ["Aim"] = "Turn aim on, pick your aim key and how fast it moves",
             ["Visuals"] = "What Whales draws on your screen",
             ["Models"] = "Pick the AI model that finds players",
-            ["Device"] = "Connect the Arduino or RP2350 that moves your mouse",
-            ["Settings"] = "Keys, colour and app options"
+            ["Device"] = "Connect the Arduino, Arduino (Raw HID) or RP2350 that moves your mouse",
+            ["Settings"] = "Keys, colour and app options",
+            ["Sketch builder"] = "Make the Arduino sketch that moves your mouse"
         };
 
         // Rows (by setting key) that the Simple layout hides: fine-tuning most people never touch
@@ -92,6 +94,7 @@ namespace Whales2
         // Device page live elements
         private StackPanel? _devicePortList;
         private TextBlock? _hidStatusText;
+        private TextBlock? _arduinoHidStatusText;
         private string _portListSignature = "";
 
         private static readonly string[] MovementPaths = PathShapes.Names;
@@ -112,13 +115,22 @@ namespace Whales2
         private static string? SelectedText(ADropdown? dropdown) =>
             (dropdown?.DropdownBox.SelectedItem as ComboBoxItem)?.Content?.ToString();
 
-        private bool UsesRp2350 =>
-            (SelectedText(uiManager.D_MouseMovementMethod) ?? Dictionary.dropdownState["Mouse Movement Method"]?.ToString()) == "RP2350";
+        private string SelectedMovementMethod =>
+            SelectedText(uiManager.D_MouseMovementMethod)
+            ?? Dictionary.dropdownState["Mouse Movement Method"]?.ToString()
+            ?? "";
+
+        private bool UsesRp2350       => SelectedMovementMethod == "RP2350";
+        private bool UsesArduinoHid   => SelectedMovementMethod == "Arduino (Raw HID)";
+        private bool UsesArduinoSerial => !UsesRp2350 && !UsesArduinoHid;
 
         private static bool HasModel =>
             !string.IsNullOrEmpty(Dictionary.lastLoadedModel) && Dictionary.lastLoadedModel != "N/A";
 
-        private bool DeviceConnected => UsesRp2350 ? MouseManager.HidDevice != null : connectedPort != null;
+        private bool DeviceConnected =>
+            UsesRp2350     ? MouseManager.HidDevice?.IsConnected == true :
+            UsesArduinoHid ? MouseManager.ArduinoHid?.IsConnected == true :
+                             connectedPort != null;
 
         private static string KeyName(string bindingKey) =>
             KeybindNameManager.ConvertToRegularKey(Dictionary.bindingSettings[bindingKey]?.ToString() ?? "");
@@ -143,6 +155,7 @@ namespace Whales2
                 _pages["Models"] = BuildModelsPage();
                 _pages["Device"] = BuildDevicePage();
                 _pages["Settings"] = BuildSettingsPage();
+                _pages[SketchPage] = BuildSketchBuilderPage();
                 _pages["Home"] = BuildHomePage();
 
                 RestoreDropdowns(savedDropdowns);
@@ -303,6 +316,7 @@ namespace Whales2
             AIManager.ClassesUpdated -= OnClassesChanged;
             AIManager.DynamicModelStatusChanged -= OnDynamicModelStatusChanged;
             uiManager.DisplaySelector?.Dispose();
+            DisposeSketchBuilder();
         }
 
         #endregion
@@ -731,7 +745,7 @@ namespace Whales2
 
             var setup = new CardBuilder(this, "Get set up", "Three steps before aim assist can move your mouse");
             setup.AddElement(MakeSetupStep(1, "Load a model", "Pick a detection model on the Models page", () => HasModel, "Models"));
-            setup.AddElement(MakeSetupStep(2, "Connect your mouse device", "Arduino COM port or RP2350, on the Device page", () => DeviceConnected, "Device"));
+            setup.AddElement(MakeSetupStep(2, "Connect your mouse device", "Arduino, Arduino (Raw HID) or RP2350, on the Device page", () => DeviceConnected, "Device"));
             setup.AddElement(MakeSetupStep(3, "Turn on aim assist", "Use the switch above, then hold your aim key", () => IsOn("Aim Assist"), null));
             left.Children.Add(setup.Root);
 
@@ -915,6 +929,14 @@ namespace Whales2
                 {
                     _homeDevice.Text = MouseManager.HidDevice != null ? "RP2350" : "Not found";
                     _homeDeviceSub.Text = "RP2350 HID mouse";
+                }
+                else if (UsesArduinoHid)
+                {
+                    bool rawHidConnected = MouseManager.ArduinoHid?.IsConnected == true;
+                    _homeDevice.Text = rawHidConnected ? "Raw HID" : "Not found";
+                    _homeDeviceSub.Text = rawHidConnected
+                        ? "Arduino Leonardo  ·  Raw HID"
+                        : "Arduino Leonardo  ·  flash mouse_bridge_rawhid.ino";
                 }
                 else
                 {
@@ -1642,22 +1664,53 @@ namespace Whales2
             Grid.SetColumn(reconnect, 1);
             hidPanel.Children.Add(reconnect);
 
+            // Arduino (Raw HID): HID status with a reconnect button — parallel to the RP2350 one
+            var arduinoHidPanel = new Grid { Margin = new Thickness(14, 6, 14, 8) };
+            arduinoHidPanel.ColumnDefinitions.Add(new ColumnDefinition());
+            arduinoHidPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            _arduinoHidStatusText = new TextBlock
+            {
+                FontFamily = Res<FontFamily>("UIFont"),
+                FontSize = 13,
+                Foreground = Res<Brush>("UI.Text"),
+                VerticalAlignment = VerticalAlignment.Center,
+                TextWrapping = TextWrapping.Wrap
+            };
+            arduinoHidPanel.Children.Add(_arduinoHidStatusText);
+            var arduinoHidReconnect = MakeButton("Reconnect", () =>
+            {
+                ConnectArduinoHidDevice(showMessageIfMissing: true);
+                UpdateHidStatus();
+                UpdateStatus();
+            });
+            Grid.SetColumn(arduinoHidReconnect, 1);
+            arduinoHidPanel.Children.Add(arduinoHidReconnect);
+
             var output = new CardBuilder(this, "Mouse output", "The device that moves your mouse")
                 .AddDropdown("Mouse Movement Method", "Device type", "What sends the mouse movement",
-                    new[] { "Arduino", "RP2350" }, d =>
+                    new[] { "Arduino", "Arduino (Raw HID)", "RP2350" }, d =>
                     {
                         uiManager.D_MouseMovementMethod = d;
                         d.DropdownBox.SelectionChanged += (_, _) =>
                         {
+                            // Picking a HID board connects to it straight away (quietly; its row shows the status)
+                            if (!_suppressDropdownSideEffects)
+                            {
+                                if (UsesArduinoHid) ConnectArduinoHidDevice(showMessageIfMissing: false);
+                                else if (UsesRp2350 && MouseManager.HidDevice?.IsConnected != true) ConnectHidDevice(showMessageIfMissing: false);
+                            }
                             RefreshConditionalRows();
                             UpdateHidStatus();
                             if (_pagesBuilt) UpdateStatus();
                         };
                     })
-                .AddElement(arduinoPanel, when: () => !UsesRp2350)
+                .AddElement(arduinoPanel, when: () => UsesArduinoSerial)
+                .AddElement(arduinoHidPanel, when: () => UsesArduinoHid)
                 .AddElement(hidPanel, when: () => UsesRp2350)
                 .AddAction("Send test move", "Nudges your cursor right and back to check the device works",
-                    () => _ = MouseManager.SendTestMoveAsync());
+                    () => _ = MouseManager.SendTestMoveAsync())
+                .AddAction("Make a sketch for your board", "Step by step: record your mouse, then generate and upload a COM or Raw HID sketch",
+                    () => ShowPage(SketchPage), when: () => !UsesRp2350);
             left.Children.Add(output.Root);
 
             // Screen capture
@@ -1691,10 +1744,19 @@ namespace Whales2
 
         private void UpdateHidStatus()
         {
-            if (_hidStatusText == null) return;
-            _hidStatusText.Text = MouseManager.HidDevice != null
-                ? "RP2350 connected"
-                : "RP2350 not found. Plug it in, then press Reconnect.";
+            if (_hidStatusText != null)
+            {
+                _hidStatusText.Text = MouseManager.HidDevice != null
+                    ? "RP2350 connected"
+                    : "RP2350 not found. Plug it in, then press Reconnect.";
+            }
+
+            if (_arduinoHidStatusText != null)
+            {
+                _arduinoHidStatusText.Text = MouseManager.ArduinoHid?.IsConnected == true
+                    ? "Arduino (Raw HID) connected"
+                    : "Not found. Flash mouse_bridge_rawhid.ino to your Leonardo, plug it in, then press Reconnect.";
+            }
         }
 
         /// <summary>Rebuilds the Device page port list when the ports or the connection change.</summary>

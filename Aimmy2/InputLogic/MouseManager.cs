@@ -24,6 +24,7 @@ namespace InputLogic
         public static double smoothingFactor = 0.5;
         public static bool IsEMASmoothingEnabled = false;
         public static HidMouseDevice? HidDevice = null;
+        public static ArduinoHidDevice? ArduinoHid = null;
 
         public static bool IsArduinoConnected => arduinoInput != null;
 
@@ -64,10 +65,18 @@ namespace InputLogic
 
         private static void SendRawMove(int x, int y)
         {
-            if (Dictionary.dropdownState["Mouse Movement Method"]?.ToString() == "RP2350")
-                HidDevice?.SendMove(x, y);
-            else
-                arduinoInput?.SendMouseMove(x, y);
+            switch (Dictionary.dropdownState["Mouse Movement Method"]?.ToString())
+            {
+                case "RP2350":
+                    HidDevice?.SendMove(x, y);
+                    break;
+                case "Arduino (Raw HID)":
+                    ArduinoHid?.SendMove(x, y);
+                    break;
+                default:
+                    arduinoInput?.SendMouseMove(x, y);
+                    break;
+            }
         }
 
         private static readonly Random MouseRandom = new();
@@ -83,9 +92,17 @@ namespace InputLogic
 
             switch (mouseMovementMethod)
             {
+                case "RP2350":
+                    mouseDownAction = () => HidDevice?.SendClick(0x01, 1);  // bit0 = left, state 1 = press
+                    mouseUpAction   = () => HidDevice?.SendClick(0x01, 0);
+                    break;
+                case "Arduino (Raw HID)":
+                    mouseDownAction = () => ArduinoHid?.SendButtons(ArduinoHidDevice.BTN_LEFT);
+                    mouseUpAction   = () => ArduinoHid?.SendButtons(0);
+                    break;
                 default:
-                    mouseDownAction = () => arduinoInput?.SendMouseCommand(0,0, 1);
-                    mouseUpAction = () => arduinoInput?.SendMouseCommand(0,0, 0);
+                    mouseDownAction = () => arduinoInput?.SendMouseCommand(0, 0, 1);
+                    mouseUpAction   = () => arduinoInput?.SendMouseCommand(0, 0, 0);
                     break;
             }
 
@@ -301,6 +318,10 @@ namespace InputLogic
                 {
                     case "RP2350":
                         HidDevice?.SendMove(sendX, sendY);
+                        break;
+
+                    case "Arduino (Raw HID)":
+                        ArduinoHid?.SendMove(sendX, sendY);
                         break;
 
                     case "Arduino":

@@ -80,7 +80,8 @@ While you hold your aim key, Whales captures a square around your crosshair, run
 - **[.NET 8 Desktop Runtime (x64)](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)** and the **[Visual C++ Redistributable (x64)](https://aka.ms/vs/17/release/vc_redist.x64.exe)**.
 - **An NVIDIA GPU** with the **CUDA 12** runtime and **cuDNN 9** installed and on your `PATH`. Without them Whales still runs, but on the CPU, which is much slower.
 - **A mouse device** for aim assist to move your mouse:
-  - **Arduino** (e.g. a Leonardo) with a **USB Host Shield**. Use [sketcher.raggy.cc](https://sketcher.raggy.cc/) to set up and flash the sketch.
+  - **Arduino** (e.g. a Leonardo) with a **USB Host Shield**. Use [sketcher.raggy.cc](https://sketcher.raggy.cc/) to set up and flash the sketch. Whales talks to it over its **COM port**.
+  - Or the same **Arduino Leonardo** running the **mouse_bridge_rawhid** firmware, which Whales controls over **Raw HID** instead of a COM port (pick **Arduino (Raw HID)** on the Device page).
   - Or an **RP2350** board running compatible HID mouse firmware.
 
   Without a device, the detection and overlays still work, but the mouse won't move.
@@ -112,7 +113,7 @@ Options marked **(advanced)** only appear when **Show advanced** is switched on 
 | **Show advanced** | Shows or hides the advanced settings on every page. |
 | **FPS** | How many new screen frames the model checked in the last second. The model only runs when the screen has changed, so this can't go above your monitor's refresh rate (or your game's frame rate, if that's lower). It reads 0 while you aren't aiming. |
 | **Engine** | What is running the model: **CUDA** or **CPU**. When a model loads, a notice also says whether CUDA graphs (the fastest mode) are in use. |
-| **Port chip** | Shows whether your Arduino is connected. Click it to pick a COM port and connect or disconnect. |
+| **Port chip** | Shows whether your mouse device is connected. With **Arduino** (COM port), click it to pick a port and connect or disconnect. With **Arduino (Raw HID)** or **RP2350**, it shows that board's status and clicking it opens the Device page. |
 
 ### Home
 
@@ -267,10 +268,12 @@ The **Preview** card shows your FOV, boxes and tracers at real proportions and u
 
 | Option | What it does |
 |---|---|
-| **Device type** | What sends the mouse movement: **Arduino** or **RP2350**. |
+| **Device type** | What sends the mouse movement: **Arduino** (COM port), **Arduino (Raw HID)** or **RP2350**. Picking a HID board connects to it straight away. |
 | **COM ports** (Arduino) | Lists your COM ports with a **Connect** / **Disconnect** button for each. |
+| **Raw HID status** (Arduino (Raw HID)) | Shows whether a Leonardo running the mouse_bridge_rawhid firmware is connected, with a **Reconnect** button. Whales only connects after the board answers a handshake, so a board with the normal COM-port sketch is never sent Raw HID commands. |
 | **RP2350 status** | Shows whether the RP2350 is found, with a **Reconnect** button. |
 | **Send test move** | Nudges your cursor right and back twice, to check the device works. |
+| **Make a sketch for your board** | Opens the **Sketch builder** for an Arduino Leonardo + USB Host Shield. It walks you through it step by step: upload a report logger, read your mouse through the COM port, record each action with its own **Record** button (mouse at rest, left and right button, scroll up and down, move right, left, up and down), then it works out your mouse's report layout (8-bit, 16-bit or packed 12-bit movement, report IDs, button bits, wheel) and generates a pass-through sketch controlled over the **COM port** or **Raw HID**. With the Arduino IDE installed (plus the HID-Project and USB Host Shield Library 2.0 libraries), it compiles and uploads the sketches for you; otherwise save or copy them. **Use it in Whales** then switches the device type to match and connects. |
 | **Display** | Which monitor the model watches, if you have more than one. |
 | **Refresh displays** | Updates the list after you plug in or unplug a monitor. |
 | **Capture method** | **DirectX** is faster; **GDI+** works on more systems. Try GDI+ if you get a black screen or no detections. |
@@ -313,6 +316,7 @@ Everything is stored in a `bin` folder next to the exe:
 |---|---|
 | **Engine shows CPU** | CUDA 12 or cuDNN 9 is missing or not on your `PATH`. Install both, then restart Whales. |
 | **The mouse doesn't move** | Check the Device page: is the device connected? Use **Send test move**. For Arduino, make sure no other program has the COM port open. |
+| **"Didn't answer the Raw HID handshake"** | The Leonardo is running the normal COM-port sketch. Pick **Arduino** (COM port), or flash the mouse_bridge_rawhid firmware to use Raw HID. |
 | **FPS stays at 0** | No model is loaded, aim assist is off, or you aren't holding the aim key. |
 | **No detections, or a black capture** | Switch **Capture method** to GDI+, check the right **Display** is selected, and lower **Minimum confidence**. |
 | **Aim is too fast or swings past targets** | Raise **Sensitivity**, or try the Classic or Ease In-Out path. |

@@ -104,6 +104,9 @@ namespace Whales2.Class
             { "Aiming Boundaries Alignment", "Center" },
             { "Mouse Movement Method", "Mouse Event" },
             { "Screen Capture Method", "DirectX" },
+            // Sketch builder (Device page): the board's COM port and how the sketch is controlled
+            { "Sketch Board Port", "" },
+            { "Sketch Control", "COM port" },
             { "Tracer Position", "Bottom" },
             { "Movement Path", "Cubic Bezier" },
             { "Image Size", "640" },

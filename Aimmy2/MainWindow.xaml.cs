@@ -108,9 +108,12 @@ namespace Whales2
 
                 StartCOMPortsUpdater();
                 StartStatusUpdater();
-                // Only nag about a missing RP2350 when it is the selected device
+                // Only nag about a missing HID board when it is the selected device
                 string? movementMethod = Dictionary.dropdownState["Mouse Movement Method"]?.ToString();
                 ConnectHidDevice(showMessageIfMissing: movementMethod == "RP2350");
+                if (movementMethod == "Arduino (Raw HID)")
+                    ConnectArduinoHidDevice(showMessageIfMissing: true);
+                UpdateHidStatus(); // the Device page was built before these connected
 
                 await InitializeApplicationAsync();
                 _windowsReady = true;
@@ -147,7 +150,8 @@ namespace Whales2
         internal bool ConnectHidDevice(bool showMessageIfMissing)
         {
             var device = new HidMouseDevice();
-            if (!device.Connect())
+            // Quiet: when the RP2350 is the selected device, the message below says it's missing
+            if (!device.Connect(showNotices: false))
             {
                 if (showMessageIfMissing)
                     MessageBox.Show("RP2350 HID Device not found. Please ensure it is plugged in.");
@@ -156,6 +160,30 @@ namespace Whales2
 
             MouseManager.HidDevice?.Dispose();
             MouseManager.HidDevice = device;
+            return true;
+        }
+
+        /// <summary>Tries to open an Arduino Leonardo running the mouse_bridge_rawhid firmware
+        /// (its Raw HID channel). Returns true when it is connected.</summary>
+        internal bool ConnectArduinoHidDevice(bool showMessageIfMissing)
+        {
+            if (MouseManager.ArduinoHid?.IsConnected == true) return true;
+
+            var device = new ArduinoHidDevice();
+            if (!device.Connect(showNotices: false))
+            {
+                if (showMessageIfMissing)
+                    MessageBox.Show(
+                        (device.LastError ?? "Arduino (Raw HID) not found.") + "\n\n" +
+                        "Once the mouse_bridge_rawhid firmware is flashed and the board is plugged in, " +
+                        "press Reconnect on the Device page.",
+                        "Arduino (Raw HID)");
+                return false;
+            }
+            new NoticeBar("Arduino (Raw HID) connected.", 4000).Show();
+
+            MouseManager.ArduinoHid?.Dispose();
+            MouseManager.ArduinoHid = device;
             return true;
         }
 
@@ -452,6 +480,18 @@ namespace Whales2
         {
             if (PortChipValue == null || PortDot == null) return;
 
+            // HID boards don't use a COM port: show the selected board's status instead
+            if (_pagesBuilt && (UsesArduinoHid || UsesRp2350))
+            {
+                bool hidConnected = UsesArduinoHid
+                    ? MouseManager.ArduinoHid?.IsConnected == true
+                    : MouseManager.HidDevice?.IsConnected == true;
+                PortChipValue.Text = (UsesArduinoHid ? "Raw HID" : "RP2350") + (hidConnected ? "" : " not found");
+                PortChipValue.SetResourceReference(TextBlock.ForegroundProperty, hidConnected ? "ThemeColor" : "UI.Text");
+                PortDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, hidConnected ? "ThemeColor" : "UI.TextDim");
+                return;
+            }
+
             if (!string.IsNullOrEmpty(connectedPort) && Array.IndexOf(ports, connectedPort) >= 0)
             {
                 PortChipValue.Text = connectedPort;
@@ -470,6 +510,15 @@ namespace Whales2
         private void PortChip_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
+
+            // HID boards are managed on the Device page (no COM port list)
+            if (_pagesBuilt && (UsesArduinoHid || UsesRp2350))
+            {
+                if (PortPopup != null) PortPopup.IsOpen = false;
+                ShowPage("Device");
+                return;
+            }
+
             if (PortPopup == null) return;
 
             bool shouldOpen = !PortPopup.IsOpen;
@@ -535,6 +584,10 @@ namespace Whales2
             DisableAllFeatures();
             CloseWindows();
             DisposePages();
+
+            // Release any held button and close the HID boards
+            MouseManager.ArduinoHid?.Dispose();
+            MouseManager.HidDevice?.Dispose();
 
             SaveAllConfigurations();
             FileManager.AIManager?.Dispose();
