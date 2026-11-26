@@ -652,12 +652,22 @@ namespace Whales2
             UpdateStatus();
         }
 
+        /// <summary>True while aim assist is on and the aim key is held (or always tracking), with the model running.</summary>
+        private static bool IsAimingNow(bool running, bool aimOn) =>
+            running && aimOn && (Dictionary.toggleState["Constant AI Tracking"]
+                                 || InputBindingManager.IsHoldingBinding("Aim Keybind")
+                                 || InputBindingManager.IsHoldingBinding("Second Aim Keybind"));
+
         /// <summary>Refreshes the header chips, the sidebar aim card and the Home page.</summary>
         internal void UpdateStatus()
         {
             var aiManager = FileManager.AIManager;
             var fps = aiManager?.CurrentFps ?? 0;
             FpsText.Text = fps > 0 ? Math.Round(fps).ToString() : "0";
+            // The model only checks new screen frames: aiming at a still screen (e.g. the desktop) reads 0
+            FpsChip.ToolTip = fps <= 0 && IsAimingNow(aiManager?.IsRunning == true, Dictionary.toggleState["Aim Assist"])
+                ? "0 because the screen isn't changing: the model only checks new frames. In a game this shows your detection rate."
+                : "New screen frames the model checked per second. It can't go above your monitor's refresh rate (0 while idle)";
             if (fps > 0)
                 FpsText.SetResourceReference(TextBlock.ForegroundProperty, "ThemeColor");
             else

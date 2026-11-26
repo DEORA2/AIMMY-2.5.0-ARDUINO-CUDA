@@ -1,4 +1,5 @@
-﻿using Whales2.Class;
+﻿using Whales2.AILogic;
+using Whales2.Class;
 using Other;
 using SharpGen.Runtime;
 using System.Diagnostics;
@@ -360,6 +361,7 @@ namespace AILogic
                     bool mask = Dictionary.toggleState["Third Person Support"];
 
                     MathUtil.BgraToPlanarRgb(src, srcStride, imageSize, input, mask);
+                    if (LivePreview.Active) LivePreview.WritePixels(src, srcStride, imageSize, mask);
 
                     // A picture is only kept when training images are being saved
                     if (keepFrame)
@@ -473,6 +475,7 @@ namespace AILogic
                 try
                 {
                     MathUtil.BgraToPlanarRgb((byte*)data.Scan0, data.Stride, imageSize, input, maskThirdPerson: false);
+                    if (LivePreview.Active) LivePreview.WritePixels((byte*)data.Scan0, data.Stride, imageSize, false); // already masked
                 }
                 finally
                 {

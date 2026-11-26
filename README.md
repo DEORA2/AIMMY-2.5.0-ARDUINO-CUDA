@@ -91,7 +91,7 @@ While you hold your aim key, Whales captures a square around your crosshair, run
 1. Download `Whales-vX.X.X-Debug-x64.zip` from [Releases](https://github.com/DEORA2/AIMMY-2.5.0-ARDUINO-CUDA/releases/latest) (not the "Source code" zip).
 2. Extract the **whole** zip to a normal folder. The DLLs and the `runtimes` folder must stay next to the exe.
 3. Run `WhaleCumOrganizer.exe`.
-4. Follow the **Get set up** steps on the Home page:
+4. Get going:
    1. **Load a model:** on the Models page, drag an `.onnx` file onto the library or download one, then click it.
    2. **Connect your mouse device:** on the Device page, or by clicking the port chip at the top right.
    3. **Turn on aim assist** with the switch, then hold your aim key (right mouse button by default).
@@ -121,7 +121,7 @@ Options marked **(advanced)** only appear when **Show advanced** is switched on 
 |---|---|
 | **Aim assist** | Big on/off switch, with a line telling you what is still missing (e.g. no model loaded). |
 | **Detection speed / Engine / Mouse device** | Live status: frames per second, what's running the model, and whether your device is connected. |
-| **Get set up** | The three steps needed before aim assist can move your mouse, ticked off as you complete them. **Open** takes you to the right page. |
+| **Live view** | What the model sees: the square around your crosshair, live, with a box and confidence label on everything it detects. The target it would aim at is highlighted in your theme colour, overlapping boxes are merged, and the FOV is outlined when it is smaller than the view. While Home is open and Whales is the focused window, the model keeps running about 15 times a second so the view stays live, but only to show what it sees: it never aims, clicks or saves training images unless you are actually aiming. **Pause** stops it, and it stops by itself when you leave Home, switch to another window (e.g. your game) or minimise Whales. If the Whales window covers the middle of your screen, the model sees the preview too. |
 | **Current setup** | The config and model that are loaded. **Save config** saves your settings, **Change model or config** opens the Models page. |
 | **Quick tune** | Sensitivity, FOV size and minimum confidence. These are the same settings as on the other pages, placed here because they're changed the most. |
 

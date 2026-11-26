@@ -117,11 +117,21 @@ namespace Whales2.AILogic
         private void CountFrame()
         {
             long now = Stopwatch.GetTimestamp();
-            Interlocked.Exchange(ref _lastFrameTimestamp, now);
-            _fpsFrames++;
+            long last = Interlocked.Exchange(ref _lastFrameTimestamp, now);
 
+            // After a break in detection (not aiming, live view paused, or a still screen) start a fresh window.
+            // Otherwise the first rate after the break is divided by the whole idle time and reads ~0.
+            if (last == 0 || Stopwatch.GetElapsedTime(last, now).TotalSeconds > 0.5)
+            {
+                _fps = 0;
+                _fpsFrames = 0;
+                _fpsWindowStart = now;
+                return;
+            }
+
+            _fpsFrames++;
             double elapsed = Stopwatch.GetElapsedTime(_fpsWindowStart, now).TotalSeconds;
-            if (elapsed >= 1.0)
+            if (elapsed >= 0.5)
             {
                 _fps = _fpsFrames / elapsed;
                 _fpsFrames = 0;
@@ -145,6 +155,12 @@ namespace Whales2.AILogic
 
         // What the last capture returned; the loop skips frames where the screen hadn't changed
         private CaptureStatus _lastCaptureStatus = CaptureStatus.NewFrame;
+
+        // True while the current frame only runs for the Home page's live view (not aiming)
+        private bool _previewOnlyFrame;
+        private long _lastPreviewRun;
+        // The live view alone runs the model at most this often (about 15 times a second)
+        private const double LivePreviewIntervalMs = 66;
 
         // Benchmarking
         private readonly Dictionary<string, BenchmarkData> _benchmarks = new();
@@ -307,13 +323,29 @@ namespace Whales2.AILogic
         };
 
         // The model runs on the GPU, so ONNX Runtime's CPU-side memory pools only hold on to RAM
-        private static SessionOptions CreateSessionOptions() => new()
+        private static SessionOptions CreateSessionOptions()
         {
-            EnableCpuMemArena = false,
-            EnableMemoryPattern = false,
-            GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
-            ExecutionMode = ExecutionMode.ORT_SEQUENTIAL,
-        };
+            var options = new SessionOptions
+            {
+                EnableCpuMemArena = false,
+                EnableMemoryPattern = false,
+                GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
+                ExecutionMode = ExecutionMode.ORT_SEQUENTIAL,
+            };
+            // ONNX Runtime's CPU worker threads (one per core by default) spin-wait after every run. On CUDA the CPU
+            // does almost nothing per run, so with the model running every frame that spinning alone kept ~12 cores
+            // busy. Let idle workers sleep instead.
+            options.AddSessionConfigEntry("session.intra_op.allow_spinning", "0");
+            options.AddSessionConfigEntry("session.inter_op.allow_spinning", "0");
+            return options;
+        }
+
+        /// <summary>CPU worker threads for a session: a couple on CUDA (only small CPU-side ops), all cores on CPU.</summary>
+        private static void SetCpuThreads(SessionOptions options, string provider)
+        {
+            options.IntraOpNumThreads = provider == "CPU" ? 0 : 2; // 0 = ONNX Runtime default (one per physical core)
+            options.InterOpNumThreads = 1;
+        }
 
         private static string TryAppendBestProvider(SessionOptions sessionOptions, HashSet<string> available)
         {
@@ -390,6 +422,7 @@ namespace Whales2.AILogic
             try
             {
                 provider = TryAppendBestProvider(sessionOptions, available);
+                SetCpuThreads(sessionOptions, provider);
                 _onnxModel = new InferenceSession(modelPath, sessionOptions);
                 ExecutionProvider = provider; // only report a provider once the session actually started
 
@@ -759,10 +792,27 @@ namespace Whales2.AILogic
                 {
                     UpdateFOV();
 
-                    if (ShouldProcess())
+                    // The live view on Home also runs the model while you're not aiming, but only to show
+                    // what it sees: no aiming, clicking, overlay or training images in that case.
+                    bool aiming = ShouldProcess() && ShouldPredict();
+                    bool previewOnly = !aiming && LivePreview.Active;
+
+                    // Just watching the live view doesn't need every frame: cap it (aiming is never capped)
+                    if (previewOnly)
                     {
-                        if (ShouldPredict())
+                        double waitMs = LivePreviewIntervalMs - Stopwatch.GetElapsedTime(_lastPreviewRun).TotalMilliseconds;
+                        if (waitMs > 0)
                         {
+                            await Task.Delay(TimeSpan.FromMilliseconds(Math.Min(waitMs, LivePreviewIntervalMs)));
+                            continue;
+                        }
+                        _lastPreviewRun = Stopwatch.GetTimestamp();
+                    }
+
+                    if (aiming || previewOnly)
+                    {
+                        {
+                            _previewOnlyFrame = previewOnly;
                             Prediction? closestPrediction;
                             using (Benchmark("GetClosestPrediction"))
                             {
@@ -779,6 +829,9 @@ namespace Whales2.AILogic
                             }
 
                             CountFrame();
+
+                            if (previewOnly)
+                                continue;
 
                             if (closestPrediction == null)
                             {
@@ -813,11 +866,6 @@ namespace Whales2.AILogic
 
                             totalTime += stopwatch.ElapsedTicks;
                             iterationCount++;
-                        }
-                        else
-                        {
-                            // Processing so we are at the ready but not holding right/click.
-                            await Task.Delay(1);
                         }
                     }
                     else
@@ -1245,6 +1293,7 @@ namespace Whales2.AILogic
                     // Sticky aim keeps following a target that just dropped out for a moment
                     Prediction? held = HandleStickyAim(null, KDPredictions, detectionBox);
                     if (held != null) UpdateDetectionBox(held, detectionBox);
+                    if (LivePreview.Active) LivePreview.Publish(KDPredictions, held, FovSize);
                     return held;
                 }
 
@@ -1269,6 +1318,7 @@ namespace Whales2.AILogic
                 }
 
                 Prediction? finalTarget = HandleStickyAim(bestCandidate, KDPredictions, detectionBox);
+                if (LivePreview.Active) LivePreview.Publish(KDPredictions, finalTarget, FovSize);
                 if (finalTarget != null)
                 {
                     UpdateDetectionBox(finalTarget, detectionBox);
@@ -1505,8 +1555,9 @@ namespace Whales2.AILogic
 
         private void SaveFrame(Prediction? DoLabel = null)
         {
-            // Only save frames if "Collect Data While Playing" is enabled
-            if (!Dictionary.toggleState["Collect Data While Playing"]) return;
+            // Only save frames if "Collect Data While Playing" is enabled, and never from frames
+            // that only ran for the live view
+            if (!Dictionary.toggleState["Collect Data While Playing"] || _previewOnlyFrame) return;
 
             // Skip if we're in constant tracking mode (unless auto-labeling is enabled)
             if (Dictionary.toggleState["Constant AI Tracking"] && !Dictionary.toggleState["Auto Label Data"]) return;
@@ -1568,6 +1619,7 @@ namespace Whales2.AILogic
 
             // Stop the loop
             _isAiLoopRunning = false;
+            LivePreview.Clear(); // don't keep showing this model's last frame
             if (_aiLoopThread != null && _aiLoopThread.IsAlive)
             {
                 if (!_aiLoopThread.Join(TimeSpan.FromSeconds(1)))

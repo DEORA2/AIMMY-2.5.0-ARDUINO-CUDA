@@ -89,6 +89,8 @@ namespace Whales2.AILogic
                 if (outputShapes == null) return null;
 
                 using var options = makeSessionOptions();
+                options.IntraOpNumThreads = 2; // CUDA graph: the CPU only launches the graph
+                options.InterOpNumThreads = 1;
                 using (var cuda = new OrtCUDAProviderOptions())
                 {
                     var settings = new Dictionary<string, string>(cudaOptions) { ["enable_cuda_graph"] = "1" };

@@ -48,7 +48,7 @@ namespace Whales2
         // Plainer wording used by the Simple layout
         private static readonly Dictionary<string, string> SimplePageSubtitles = new()
         {
-            ["Home"] = "Start here: three steps and you're aiming",
+            ["Home"] = "See what the model sees, then switch aim on",
             ["Aim"] = "Turn aim on, pick your aim key and how fast it moves",
             ["Visuals"] = "What Whales draws on your screen",
             ["Models"] = "Pick the AI model that finds players",
@@ -88,8 +88,7 @@ namespace Whales2
         private PillSwitch? _homeAimSwitch;
 
         // Home page live elements
-        private TextBlock? _homeAimTitle, _homeAimSub, _homeFps, _homeEngine, _homeDevice, _homeDeviceSub, _homeConfig, _homeModel;
-        private readonly List<(Border Badge, TextBlock Mark, int Number, Func<bool> Done)> _setupSteps = new();
+        private TextBlock? _homeAimTitle, _homeAimSub, _homeFps, _homeFpsSub, _homeEngine, _homeDevice, _homeDeviceSub, _homeConfig, _homeModel;
 
         // Device page live elements
         private StackPanel? _devicePortList;
@@ -223,6 +222,7 @@ namespace Whales2
             }
 
             if (name == "Home") UpdateStatus();
+            SetLiveViewVisible(name == "Home");
         }
 
         private void CyclePage(int direction)
@@ -317,6 +317,7 @@ namespace Whales2
             AIManager.DynamicModelStatusChanged -= OnDynamicModelStatusChanged;
             uiManager.DisplaySelector?.Dispose();
             DisposeSketchBuilder();
+            SetLiveViewVisible(false);
         }
 
         #endregion
@@ -736,18 +737,16 @@ namespace Whales2
             var tiles = new Grid { Margin = new Thickness(0, 0, 0, 0) };
             for (int i = 0; i < 5; i++)
                 tiles.ColumnDefinitions.Add(new ColumnDefinition { Width = i % 2 == 1 ? new GridLength(16) : new GridLength(1, GridUnitType.Star) });
-            AddTile(tiles, 0, "Detection speed", out _homeFps, out _, "frames per second");
+            AddTile(tiles, 0, "Detection speed", out _homeFps, out _homeFpsSub, "frames per second");
             AddTile(tiles, 2, "Engine", out _homeEngine, out _, "runs the model");
             AddTile(tiles, 4, "Mouse device", out _homeDevice, out _homeDeviceSub, "");
             root.Children.Add(HideInSimple(tiles));
 
             var columns = MakeColumns(out var left, out var right);
 
-            var setup = new CardBuilder(this, "Get set up", "Three steps before aim assist can move your mouse");
-            setup.AddElement(MakeSetupStep(1, "Load a model", "Pick a detection model on the Models page", () => HasModel, "Models"));
-            setup.AddElement(MakeSetupStep(2, "Connect your mouse device", "Arduino, Arduino (Raw HID) or RP2350, on the Device page", () => DeviceConnected, "Device"));
-            setup.AddElement(MakeSetupStep(3, "Turn on aim assist", "Use the switch above, then hold your aim key", () => IsOn("Aim Assist"), null));
-            left.Children.Add(setup.Root);
+            var live = new CardBuilder(this, "Live view", "What the model sees around your crosshair, and what it detects");
+            live.AddElement(BuildLiveView());
+            left.Children.Add(live.Root);
 
             // Current profile
             var profile = new CardBuilder(this, "Current setup", "What is loaded right now");
@@ -765,13 +764,13 @@ namespace Whales2
             modelsButton.Margin = new Thickness(8, 0, 0, 0);
             profileButtons.Children.Add(modelsButton);
             profile.AddElement(profileButtons);
-            left.Children.Add(profile.Root);
 
             var tune = new CardBuilder(this, "Quick tune", "The settings people change most. Same values as on the other pages.");
             tune.AddElement(MirrorSlider(uiManager.S_MouseSensitivity, "Sensitivity", "Lower is faster and snappier, higher is slower and smoother"));
             tune.AddElement(MirrorSlider(uiManager.S_FOVSize, "FOV size", "Area searched for targets around your crosshair"));
             tune.AddElement(MirrorSlider(uiManager.S_AIMinimumConfidence, "Minimum confidence", "How sure the model must be before it aims"));
             right.Children.Add(tune.Root);
+            right.Children.Add(profile.Root);
 
             root.Children.Add(columns);
 
@@ -849,64 +848,6 @@ namespace Whales2
             grid.Children.Add(value);
         }
 
-        private FrameworkElement MakeSetupStep(int number, string title, string desc, Func<bool> done, string? page)
-        {
-            var grid = new Grid { Margin = new Thickness(12, 6, 12, 6), MinHeight = 44 };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition());
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var mark = new TextBlock
-            {
-                Text = number.ToString(),
-                FontFamily = Res<FontFamily>("UIFont"),
-                FontSize = 12,
-                FontWeight = FontWeights.SemiBold,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                Foreground = Res<Brush>("UI.TextSoft")
-            };
-            var badge = new Border
-            {
-                Width = 26,
-                Height = 26,
-                CornerRadius = new CornerRadius(13),
-                Background = Res<Brush>("UI.KeyBg"),
-                BorderBrush = Res<Brush>("UI.Box"),
-                BorderThickness = new Thickness(1),
-                VerticalAlignment = VerticalAlignment.Center,
-                Child = mark
-            };
-            grid.Children.Add(badge);
-
-            var text = new StackPanel { Margin = new Thickness(12, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
-            text.Children.Add(new TextBlock
-            {
-                Text = title,
-                FontFamily = Res<FontFamily>("UIFont"),
-                FontSize = 14,
-                FontWeight = FontWeights.Medium,
-                Foreground = Res<Brush>("UI.Text")
-            });
-            var descText = MakeSmall(desc);
-            descText.Margin = new Thickness(0, 2, 0, 0);
-            text.Children.Add(descText);
-            Grid.SetColumn(text, 1);
-            grid.Children.Add(text);
-
-            if (page != null)
-            {
-                var open = MakeButton("Open", () => ShowPage(page));
-                open.Height = 30;
-                open.VerticalAlignment = VerticalAlignment.Center;
-                Grid.SetColumn(open, 2);
-                grid.Children.Add(open);
-            }
-
-            _setupSteps.Add((badge, mark, number, done));
-            return grid;
-        }
-
         private void UpdateHomePage(double fps, bool running, bool hasModel, string modelName, bool aimOn)
         {
             if (_homeAimTitle == null || _homeAimSub == null) return;
@@ -921,6 +862,8 @@ namespace Whales2
             _homeAimSwitch?.Set(aimOn);
 
             if (_homeFps != null) _homeFps.Text = fps > 0 ? Math.Round(fps).ToString() : "0";
+            if (_homeFpsSub != null)
+                _homeFpsSub.Text = fps <= 0 && IsAimingNow(running, aimOn) ? "waiting for the screen to change" : "frames per second";
             if (_homeEngine != null) _homeEngine.Text = running ? AIManager.ExecutionProvider : "Idle";
 
             if (_homeDevice != null && _homeDeviceSub != null)
@@ -951,29 +894,6 @@ namespace Whales2
                 _homeConfig.Text = string.IsNullOrEmpty(config) || config == "N/A" ? "Default" : Path.GetFileNameWithoutExtension(config);
             }
             if (_homeModel != null) _homeModel.Text = hasModel ? modelName : "None loaded";
-
-            foreach (var (badge, mark, number, done) in _setupSteps)
-            {
-                bool complete;
-                try { complete = done(); } catch { complete = false; }
-
-                if (complete)
-                {
-                    badge.SetResourceReference(Border.BackgroundProperty, "ThemeColor");
-                    badge.BorderThickness = new Thickness(0);
-                    mark.FontFamily = new FontFamily("Segoe MDL2 Assets");
-                    mark.Text = "";
-                    mark.Foreground = Res<Brush>("UI.Bg");
-                }
-                else
-                {
-                    badge.Background = Res<Brush>("UI.KeyBg");
-                    badge.BorderThickness = new Thickness(1);
-                    mark.FontFamily = Res<FontFamily>("UIFont");
-                    mark.Text = number.ToString();
-                    mark.Foreground = Res<Brush>("UI.TextSoft");
-                }
-            }
         }
 
         #endregion
